@@ -3,6 +3,8 @@ This project is a work in progress and is in a pre-alpha state. Many thanks to @
 
 The graphql_model_mapper gem facilitates the generation of GraphQL objects based on the definition of your existing ActiveRecord models.
 
+It has been tested on Rails 3.2, 4.1 and 5.0 using Ruby 2.2.8
+
 ## Installation
 
 Add this line to your application's Gemfile:
