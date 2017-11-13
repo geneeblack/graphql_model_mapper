@@ -354,7 +354,7 @@ so you may access and test your GraphQL queries. It is located at https://github
 
 you can then reference your previously assigned schema in  app/controllers/graphql_controller.rb
 
-    #app/controllers/graphql_controller
+    #app/controllers/graphql_controller.rb
     class GraphqlController < ApplicationController
         def execute
             variables = ensure_hash(params[:variables])
