@@ -10,13 +10,13 @@ module GraphqlModelMapper
   mattr_accessor :type_suffix
   mattr_accessor :type_prefix
   mattr_accessor :type_case
-  mattr_accessor :connection_strategy
+  mattr_accessor :nesting_strategy
   mattr_accessor :use_authorize
   
   @@type_suffix = "_"
   @@type_prefix = ""
   @@type_case = :camelize
-  @@connection_strategy = :shallow
+  @@nesting_strategy = :shallow
   @@use_authorize = false
   
   def self.included(klazz)

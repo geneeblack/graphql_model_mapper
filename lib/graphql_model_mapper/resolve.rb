@@ -87,7 +87,6 @@ module GraphqlModelMapper
                 raise GraphQL::ExecutionError.new("error: unauthorized access: create '#{model_name.classify}'")
             end
             model = model_name.classify.constantize   
-            puts "#{model_name}.create(#{inputs[model_name.downcase].to_h})"
             item = model.new(inputs[model_name.downcase].to_h)
             begin
               if !item.valid?

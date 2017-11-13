@@ -86,7 +86,7 @@ module GraphqlModelMapper
             else
               total_output_type = GraphQL::ObjectType.define do
                 name total_output_type_name
-                if [:deep, :shallow].include?(GraphqlModelMapper.connection_strategy)
+                if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
                   connection :items, -> {output_type.connection_type}, hash_key: :items
                 else
                   field :items, -> {output_type.to_list_type}, hash_key: :items

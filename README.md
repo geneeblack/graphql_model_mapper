@@ -66,7 +66,7 @@ macro attribute on the model, passing the individual settings that differ from t
     }
 
 
-Note that the query and delete mutations do not have an input type defined since they currently generated internally:
+Note that the query and delete mutations do not have an input type defined since their arguments are currently generated internally:
 
 
     query: {
@@ -214,57 +214,58 @@ Some other attributes that you can set on the graphql_query are
 
 ## Optional Authorization
 
-The schema has the capability to use the cancan gem to enable authorized access to the query and mutation fields based on the models, if implemented it also will control the availability of the associations assigne to the model based on their underlying model authorization. This is an optional setup and is not required.
+The schema has the capability to use the cancancan gem to enable authorized access to the query and mutation fields based on the models, if implemented it also will control the availability of the associations assigne to the model based on their underlying model authorization. This is an optional setup and is not required.  
 
     gem "cancancan", "~> 1.10"
 
 Follow the setup for cancancan and create an app/model/ability.rb file to setup your access rights
-        class Ability
-            include CanCan::Ability
+        
+    class Ability
+        include CanCan::Ability
 
-            def initialize(user)
-                # Define abilities for the passed in user here. For example:
-                #
-                #   user ||= User.new # guest user (not logged in)
-                #   if user.admin?
-                #     can :manage, :all
-                #   else
-                #     can :read, :all
-                #   end
-                #
-                # The first argument to `can` is the action you are giving the user
-                # permission to do.
-                # If you pass :manage it will apply to every action. Other common actions
-                # here are :read, :create, :update and :destroy.
-                #
-                # The second argument is the resource the user can perform the action on.
-                # If you pass :all it will apply to every resource. Otherwise pass a Ruby
-                # class of the resource.
-                #
-                # The third argument is an optional hash of conditions to further filter the
-                # objects.
-                # For example, here the user can only update published articles.
-                #
-                #   can :update, Article, :published => true
-                #
-                # See the wiki for details:
-                # https://github.com/CanCanCommunity/cancancan/wiki/Defining-Abilities
+        def initialize(user)
+            # Define abilities for the passed in user here. For example:
+            #
+            #   user ||= User.new # guest user (not logged in)
+            #   if user.admin?
+            #     can :manage, :all
+            #   else
+            #     can :read, :all
+            #   end
+            #
+            # The first argument to `can` is the action you are giving the user
+            # permission to do.
+            # If you pass :manage it will apply to every action. Other common actions
+            # here are :read, :create, :update and :destroy.
+            #
+            # The second argument is the resource the user can perform the action on.
+            # If you pass :all it will apply to every resource. Otherwise pass a Ruby
+            # class of the resource.
+            #
+            # The third argument is an optional hash of conditions to further filter the
+            # objects.
+            # For example, here the user can only update published articles.
+            #
+            #   can :update, Article, :published => true
+            #
+            # See the wiki for details:
+            # https://github.com/CanCanCommunity/cancancan/wiki/Defining-Abilities
+            
+
+            user ||= User.new # guest user (not logged in)
+            if user.is_admin?
+                can :manage, :all
+            else
+                can :manage, [YourModelA] # this will allow access to :query, :create, :update, :delete GraphQL methods for defined models
+                can :read,   [YourModelB] # this will allow access to :query GraphQL methods for defined models as well as allow read access to associations of that type
+                can :create, [YourModelC] # this will allow access to :create GraphQL methods for defined models
+                can :update, [YourModelD] # this will allow access to :update GraphQL methods for defined models
+                can :delete, [YourModelE] # this will allow access to :delete GraphQL methods for defined models
                 
-
-                user ||= User.new # guest user (not logged in)
-                if user.is_admin?
-                    can :manage, :all
-                else
-                    can :manage, [YourModelA] # this will allow access to :query, :create, :update, :delete GraphQL methods for defined models
-                    can :read,   [YourModelB] # this will allow access to :query GraphQL methods for defined models as well as allow read access to associations of that type
-                    can :create, [YourModelC] # this will allow access to :create GraphQL methods for defined models
-                    can :update, [YourModelD] # this will allow access to :update GraphQL methods for defined models
-                    can :delete, [YourModelE] # this will allow access to :delete GraphQL methods for defined models
-                    
-                end
-
             end
+
         end
+    end
 
 
 GraphqlModelMapper requires an optional ability method on your current_user in order to check the context current_users authorization to access a GraphQL objects model implementation.
@@ -285,8 +286,11 @@ Once you have your models decorated with the graphql_query/graphql_update/graphq
     require 'graphql_model_mapper'
 
     # these are options that can be passed to the schema initiation to enable query logging or for authorization setup
-    options = {:log_query_depth=>false, :log_query_complexity=>false, :use_backtrace=>false, :use_authorize=>false}
-    GraphqlModelMapperSchema = GraphqlModelMapper.Schema(use_authorize: true)
+    # nesting_strategy can be :flat, **:shallow** or :deep
+    # type_case can be **:camelize**, :underscore or :classify
+    # the default values are shown below
+    options = {:log_query_depth=>false, :log_query_complexity=>false, :use_backtrace=>false, :use_authorize=>false, :nesting_strategy=>:shallow, :type_case=>:camelize}
+    GraphqlModelMapperSchema = **GraphqlModelMapper.Schema(use_authorize: true)**
     GraphQL::Errors.configure(GraphqlModelMapperSchema) do
 
       rescue_from ActiveRecord::StatementInvalid do |exception|
@@ -345,14 +349,14 @@ you can then reference your previously assigned schema in  app/controllers/graph
             elsif Rails.env != "development"
                 query = nil
             end
-            result = GraphqlModelMapperSchema.execute(query, variables: variables, context: context, operation_name: operation_name, except: ExceptFilter)
+            result = **GraphqlModelMapperSchema**.execute(query, variables: variables, context: context, operation_name: operation_name, except: ExceptFilter)
 
             end
             render json: result
         end
 
         private
-        # this class is exercised when use_authorize 
+        # this class is exercised when use_authorize is true
         class ExceptFilter
             def self.call(schema_member, context)
                 return false unless GraphqlModelMapper.use_authorize
