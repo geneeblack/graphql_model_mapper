@@ -1,5 +1,11 @@
 source "https://rubygems.org"
+source 'https://rubygems.org'
 
+gem 'rake'
+gem 'activerecord', '~>3.2.22.8', :require => 'active_record'
+gem 'activemodel', '~>3.2.22.8', :require => 'active_record'
+gem 'graphql', '~>1.7.5'
+gem 'graphql-errors'
 git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
 
 # Specify your gem's dependencies in graphql_model_mapper.gemspec
