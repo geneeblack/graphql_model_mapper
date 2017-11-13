@@ -179,7 +179,7 @@ If you want to assign your own resolvers for your type you can override the defa
 
 The method that you assign to the resolver should either be self contained or call a class method that accepts and orchestrates the parameters passed from GraphQL in the resolve. In this example it is simply calling a GraphQL::ExecutionError to output the contents of the input parameters. These methods could be anywhere in your application, they are not limited to the model on which they are defined.
 
-When returning items to populate the appropriate output type, return them as a hash value shaped to fir that output types definition. GraphQL will take care of the final mapping and shapping of the models item(s)
+When returning items to populate the appropriate output type, return them as a hash value shaped to fit the output types definition. GraphQL will take care of the final mapping and shapping of the models item(s)
 
     resolver: -> (obj, inputs, ctx){
         items = YourClass.method_that_returns_items(obj, inputs, ctx, name)
@@ -193,7 +193,7 @@ or
     resolver: -> (obj, inputs, ctx){
         items = YourClass.method_that_returns_an_item(obj, inputs, ctx, name)
         {
-            items: items
+            item: item
         }
     }
 
@@ -205,6 +205,7 @@ Some other attributes that you can set on the graphql_query in addition to the r
     description:    # a short description of the query
     scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
     arguments:      # a list of argument definitions to override the default arguments, if using your own arguments you will need to override the query resolver to act on those arguments, the default arguments exposed on the query are:
+    
     default_arguments =
     [{:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil},        # handled by the default resolver, outputs the top level sql for the operation
     {:name=>:id,    :type=>GraphQL::INT_TYPE, :default=>nil},                 # allows input of an id for top level record selection for the model
