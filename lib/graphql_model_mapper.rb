@@ -11,6 +11,10 @@ module GraphqlModelMapper
   mattr_accessor :type_case
   mattr_accessor :nesting_strategy
   mattr_accessor :use_authorize
+
+  @@type_case = :camelize
+  @@nesting_strategy = :shallow
+  @@use_authorize = false
   
   class << self
     attr_writer :logger
@@ -22,9 +26,6 @@ module GraphqlModelMapper
     end
   end
 
-  @@type_case = :camelize
-  @@nesting_strategy = :shallow
-  @@use_authorize = false
   
   def self.included(klazz)
     klazz.extend GraphqlModelMapper_Macros
