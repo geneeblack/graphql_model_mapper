@@ -155,22 +155,22 @@ macro attribute on the model, passing the individual settings that differ from t
 
 The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementation, currently it simply validates the input and does not attempt to add the record). 
 
-        def self.create_resolver(obj, inputs, ctx, model_name)
-            if !GraphqlModelMapper.authorized?(ctx, model_name, :create)
-                raise GraphQL::ExecutionError.new("error: unauthorized access: create '#{model_name.classify}'")
-            end
-            model = model_name.classify.constantize   
-            item = model.new(inputs[model_name.downcase].to_h)
-            begin
-              if !item.valid?
-                raise GraphQL::ExecutionError.new(item.errors.full_messages.join("; "))
-              else
-                raise GraphQL::ExecutionError.new("error: WIP, item not saved but is a valid '#{model_name.classify}'")
-                #item.save!
-              end
-            end
-            item
+    def self.create_resolver(obj, inputs, ctx, model_name)
+        if !GraphqlModelMapper.authorized?(ctx, model_name, :create)
+            raise GraphQL::ExecutionError.new("error: unauthorized access: create '#{model_name.classify}'")
         end
+        model = model_name.classify.constantize   
+        item = model.new(inputs[model_name.downcase].to_h)
+        begin
+            if !item.valid?
+            raise GraphQL::ExecutionError.new(item.errors.full_messages.join("; "))
+            else
+            raise GraphQL::ExecutionError.new("error: WIP, item not saved but is a valid '#{model_name.classify}'")
+            #item.save!
+            end
+        end
+        item
+    end
 
 
 If you want to assign your own resolvers for your type you can override the default resolver for the type on the macro attribute in the following way:
@@ -286,11 +286,11 @@ Once you have your models decorated with the graphql_query/graphql_update/graphq
     require 'graphql_model_mapper'
 
     # these are options that can be passed to the schema initiation to enable query logging or for authorization setup
-    # nesting_strategy can be :flat, **:shallow** or :deep
-    # type_case can be **:camelize**, :underscore or :classify
+    # nesting_strategy can be :flat, :shallow or :deep
+    # type_case can be :camelize, :underscore or :classify
     # the default values are shown below
     options = {:log_query_depth=>false, :log_query_complexity=>false, :use_backtrace=>false, :use_authorize=>false, :nesting_strategy=>:shallow, :type_case=>:camelize}
-    GraphqlModelMapperSchema = **GraphqlModelMapper.Schema(use_authorize: true)**
+    GraphqlModelMapperSchema = GraphqlModelMapper.Schema(use_authorize: true)
     GraphQL::Errors.configure(GraphqlModelMapperSchema) do
 
       rescue_from ActiveRecord::StatementInvalid do |exception|
@@ -349,7 +349,7 @@ you can then reference your previously assigned schema in  app/controllers/graph
             elsif Rails.env != "development"
                 query = nil
             end
-            result = **GraphqlModelMapperSchema**.execute(query, variables: variables, context: context, operation_name: operation_name, except: ExceptFilter)
+            result = GraphqlModelMapperSchema.execute(query, variables: variables, context: context, operation_name: operation_name, except: ExceptFilter)
 
             end
             render json: result
