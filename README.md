@@ -22,10 +22,10 @@ Or install it yourself as:
 
 Initially, you will not have any models exposed as GraphQL types. To expose a model you can add the following macro attributes to your model definition:
 
-graphql_query   ## to generate a GraphQL query object (and associatied GraphQL input/output types) for the model 
-graphql_create  ## to generate a GraphQL create mutation object (and its associatied GraphQL input/output types) for the model
-graphql_delete  ## to generate a GraphQL delete mutation object (and its associatied GraphQL input/output types) for the model
-graphql_update  ## to generate a GraphQL update mutation object (and its associatied GraphQL input/output types) for the model
+    graphql_query   ## to generate a GraphQL query object (and associatied GraphQL input/output types) for the model 
+    graphql_create  ## to generate a GraphQL create mutation object (and its associatied GraphQL input/output types) for the model
+    graphql_delete  ## to generate a GraphQL delete mutation object (and its associatied GraphQL input/output types) for the model
+    graphql_update  ## to generate a GraphQL update mutation object (and its associatied GraphQL input/output types) for the model
 
 The default input/output types generated for the model are based on the following settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in you own initializer. Note that the query and delete mutation do not have an input type defined since they currently generated internally:
 
