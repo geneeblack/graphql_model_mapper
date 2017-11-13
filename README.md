@@ -21,14 +21,52 @@ Or install it yourself as:
 
 ## Usage
 
-Initially, you will not have any models exposed as GraphQL types. To expose a model you can add the following macro attributes to your model definition:
+Initially, you will not have any models exposed as GraphQL types. To expose a model you can add any/all of the following macro attributes to your model definition:
 
     graphql_query   # to generate a GraphQL query object (and associated GraphQL input/output types) for the model 
     graphql_create  # to generate a GraphQL create mutation object (and its associated GraphQL input/output types) for the model
     graphql_delete  # to generate a GraphQL delete mutation object (and its associated GraphQL input/output types) for the model
     graphql_update  # to generate a GraphQL update mutation object (and its associated GraphQL input/output types) for the model
 
-The default input/output types generated for the model are based on the following settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in you own initializer. Note that the query and delete mutation do not have an input type defined since they currently generated internally:
+The default input/output types generated for the model are based on the following settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in you own initializer or individually by using the 
+
+    graphql_type
+    
+macro attribute on the model, passing the individual settings that differ from the defaults. i.e.
+
+
+    graphql_types query: {
+    output_type: {
+        excluded_attributes: [:crypted_password] 
+      }
+    }, 
+    update: {
+      input_type: {
+        excluded_attributes: [:crypted_password] 
+      },
+      output_type: {
+        excluded_attributes: [:crypted_password] 
+      }  
+    }, 
+    create: { 
+      input_type: {
+        excluded_attributes: [:crypted_password] 
+      },
+      output_type: {
+        excluded_attributes: [:crypted_password] 
+      }
+    }, 
+    delete: { 
+      input_type: {
+        excluded_attributes: [:crypted_password] 
+      },
+      output_type: {
+        excluded_attributes: [:crypted_password] 
+      }
+    }
+
+
+Note that the query and delete mutations do not have an input type defined since they currently generated internally:
 
 
     query: {
@@ -115,9 +153,29 @@ The default input/output types generated for the model are based on the followin
 
 ## Other Options
 
-The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementation). In the event that you want to assign your own resolvers for your type you can override the default resolver for the type on the macro attribute in the following way:
+The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementation, currently it simply validates the input and does not attempt to add the record). 
 
-graphql_query resolver: -> (obj, inputs, ctx){ raise GraphQL::ExecutionError.new(inputs.to_h.to_a) }
+        def self.create_resolver(obj, inputs, ctx, model_name)
+            if !GraphqlModelMapper.authorized?(ctx, model_name, :create)
+                raise GraphQL::ExecutionError.new("error: unauthorized access: create '#{model_name.classify}'")
+            end
+            model = model_name.classify.constantize   
+            item = model.new(inputs[model_name.downcase].to_h)
+            begin
+              if !item.valid?
+                raise GraphQL::ExecutionError.new(item.errors.full_messages.join("; "))
+              else
+                raise GraphQL::ExecutionError.new("error: WIP, item not saved but is a valid '#{model_name.classify}'")
+                #item.save!
+              end
+            end
+            item
+        end
+
+
+If you want to assign your own resolvers for your type you can override the default resolver for the type on the macro attribute in the following way:
+
+    graphql_query resolver: -> (obj, inputs, ctx){ raise GraphQL::ExecutionError.new(inputs.to_h.to_a) }
 
 The method that you assign to the resolver should be a class method that accepts and orchestrates the parameters passed from GraphQL in the resolve. In this example it is simply calling a GraphQL::ExecutionError to output the contents of the input parameters. These methods could be anywhere in your application, they are not limited to the model on which they are defined.
 
