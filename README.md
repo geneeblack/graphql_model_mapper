@@ -128,7 +128,7 @@ Some other attributes that you can set on the graphql_query are
     description:    # a short description of the query
     scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
     arguments:      # a list of argument definitions to override the default arguments, if using your own arguments you will need to override the query resolver to act on those arguments, the default arguments exposed on the query are:
-
+    default_arguments =
     [{:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil},        # handled by the default resolver, outputs the top level sql for the operation
     {:name=>:id,    :type=>GraphQL::INT_TYPE, :default=>nil},                 # allows input of an id for top level record selection for the model
     {:name=>:ids,    :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil},   # allows input of an array of ids for top level records selection for the model
@@ -152,6 +152,168 @@ Some other attributes that you can set on the graphql_query are
 
     description:
     resolver:
+
+
+## Optional Authorization
+
+The schema has the capability to use the cancan gem to enable authorized access to the query and mutation fields based on the models, if implemented it also will control the availability of the associations assigne to the model based on their underlying model authorization. This is an optional setup and is not required.
+
+    gem "cancancan", "~> 1.10"
+
+Follow the setup for cancancan and create an app/model/ability.rb file to setup your access rights
+        class Ability
+            include CanCan::Ability
+
+            def initialize(user)
+                # Define abilities for the passed in user here. For example:
+                #
+                #   user ||= User.new # guest user (not logged in)
+                #   if user.admin?
+                #     can :manage, :all
+                #   else
+                #     can :read, :all
+                #   end
+                #
+                # The first argument to `can` is the action you are giving the user
+                # permission to do.
+                # If you pass :manage it will apply to every action. Other common actions
+                # here are :read, :create, :update and :destroy.
+                #
+                # The second argument is the resource the user can perform the action on.
+                # If you pass :all it will apply to every resource. Otherwise pass a Ruby
+                # class of the resource.
+                #
+                # The third argument is an optional hash of conditions to further filter the
+                # objects.
+                # For example, here the user can only update published articles.
+                #
+                #   can :update, Article, :published => true
+                #
+                # See the wiki for details:
+                # https://github.com/CanCanCommunity/cancancan/wiki/Defining-Abilities
+                
+
+                user ||= User.new # guest user (not logged in)
+                if user.is_admin?
+                    can :manage, :all
+                else
+                    can :manage, [YourModelA] # this will allow access to :query, :create, :update, :delete GraphQL methods for defined models
+                    can :read,   [YourModelB] # this will allow access to :query GraphQL methods for defined models as well as allow read access to associations of that type
+                    can :create, [YourModelC] # this will allow access to :create GraphQL methods for defined models
+                    can :update, [YourModelD] # this will allow access to :update GraphQL methods for defined models
+                    can :delete, [YourModelE] # this will allow access to :delete GraphQL methods for defined models
+                    
+                end
+
+            end
+        end
+
+
+GraphqlModelMapper requires an Ability method on your current_use in order to check the context current_users authorization to access a GraphQL objects model implementation.
+
+    class User < ActiveRecord::Base
+        def ability
+            @ability ||= Ability.new(self)
+        end
+
+        ...
+    end
+
+## Schema implementation
+
+Once you have your models decorated with the graphql_ attributes the next step is implementing your schema and adding it to your contoller. For this example I am using a schema defintion located at app/graphql/graphql_model_mapper_schema.rb. I have used [https://github.com/exAspArk/graphql-errors](url) to handle errors generated from the resolve methods. It is not required but it provides an easy way to setup error handling.
+
+    #app/graphql/graphql_model_mapper_schema.rb
+    require 'graphql_model_mapper'
+
+    # these are options that can be passed to the schema initiation to enable query logging or for authorization setup
+    options = {:log_query_depth=>false, :log_query_complexity=>false, :use_backtrace=>false, :use_authorize=>false}
+    GraphqlModelMapperSchema = GraphqlModelMapper.Schema(use_authorize: true)
+    GraphQL::Errors.configure(GraphqlModelMapperSchema) do
+
+      rescue_from ActiveRecord::StatementInvalid do |exception|
+        GraphQL::ExecutionError.new(exception.message)
+      end
+
+      rescue_from ActiveRecord::RecordNotFound do |exception|
+        GraphQL::ExecutionError.new(exception.message)
+      end
+
+
+      rescue_from ActiveRecord::RecordInvalid do |exception|
+        GraphQL::ExecutionError.new(exception.message)
+      end
+
+      rescue_from StandardError do |exception|
+        GraphQL::ExecutionError.new(exception.message)
+      end
+    end
+
+## Graphiql controller setup
+
+I recommend that you install 
+
+    gem "graphiql-rails"
+
+so you may access and test your GraphQL queries. It is located at [https://github.com/rmosolgo/graphiql-rails](url). Once you have graphiql-rails you can setup the route 
+
+    #config/routes.rb
+    [YourApp]::Application.routes.draw do
+      if Rails.env.development? || Rails.env.staging?   # you can restrict access to graphiql to specific environments here
+        mount GraphiQL::Rails::Engine, at: "/graphiql", graphql_path: "/graphql"
+      end
+      post "/graphql", to: "graphql#execute"
+
+      ....
+    end
+
+you can then reference your previously assigned schema in  app/controllers/graphql_contoller.rb
+
+    #app/controllers/graphql_controller
+    class GraphqlController < ApplicationController
+        def execute
+            variables = ensure_hash(params[:variables])
+            query = params[:query]
+            operation_name = params[:operationName]
+            context = {
+            # Query context goes here, for example:
+            current_user: current_user
+            }
+            
+            begin
+            if (logged_in?)# && current_user.is_admin?)
+                Ability.new(current_user)        
+            elsif Rails.env != "development"
+                query = nil
+            end
+            result = GraphqlModelMapperSchema.execute(query, variables: variables, context: context, operation_name: operation_name, except: ExceptFilter)
+
+            end
+            render json: result
+        end
+
+        private
+        class ExceptFilter
+            def self.call(schema_member, context)
+            #puts schema_member
+            # true if field should be excluded, false if it should be included
+            return false unless authorized_proc = schema_member.metadata[:authorized_proc]
+            model_name = schema_member.metadata[:model_name]
+            access_type = schema_member.metadata[:access_type]
+            !authorized_proc.call(context, model_name, access_type)
+            end
+        end
+
+        def ensure_hash(query_variables)
+            if query_variables.blank?
+            {}
+            elsif query_variables.is_a?(String)
+            JSON.parse(query_variables)
+            else
+            query_variables
+            end
+        end
+    end
 
 ## Development
 
