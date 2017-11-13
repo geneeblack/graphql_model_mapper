@@ -8,7 +8,7 @@ The graphql_model_mapper gem facilitates the generation of GraphQL objects based
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'graphql_model_mapper'
+gem 'graphql_model_mapper', :git => "git://github.com/geneeblack/graphql_model_mapper.git"
 ```
 
 And then execute:
