@@ -32,7 +32,7 @@ The default input/output types generated for the model are based on the default 
 
 Note that the query and delete mutations do not have an input type defined since their arguments are currently generated internally:
 
-GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES =
+    GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES =
     query: {
         output_type: {
             required_attributes: [],    # attributes required in the type - empty list defaults to no required attributes
