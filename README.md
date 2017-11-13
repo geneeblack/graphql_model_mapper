@@ -234,7 +234,7 @@ Some other attributes that you can set on the graphql_query in addition to the r
 
 ## Optional Authorization
 
-The schema has the capability to use the cancancan gem to enable authorized access to the query and mutation fields based on the models, if implemented it also will control the availability of the associations assigne to the model based on their underlying model authorization. This is an optional setup and is not required.  
+The schema has the capability to use the cancancan gem to enable authorized access to the query and mutation fields based on the models, if implemented it also will control the availability of the associations assigned to the model based on their underlying model authorization. This is an optional setup and is not required.  
 
     gem "cancancan", "~> 1.10"
 
