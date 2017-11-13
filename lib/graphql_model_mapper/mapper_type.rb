@@ -213,6 +213,7 @@ module GraphqlModelMapper
                 source_nulls: false,
                 type_key: :query,
                 type_sub_key: :output_type
+            }
             },
             update: {
             input_type: {
