@@ -1,4 +1,5 @@
-# GraphqlModelMapper
+# graphql_model_mapper
+This project is a work in progress is in a pre-alpha state. Many thanks to @AndyKriger [https://github.com/AndyKriger](url) who initiated the original idea on the GraphQL issue thread [https://github.com/rmosolgo/graphql-ruby/issues/945](url). 
 
 The graphql_model_mapper gem facilitates the generation of GraphQL objects based on the existing definition of your ActiveRecord models.
 
@@ -22,10 +23,10 @@ Or install it yourself as:
 
 Initially, you will not have any models exposed as GraphQL types. To expose a model you can add the following macro attributes to your model definition:
 
-    graphql_query   # to generate a GraphQL query object (and associatied GraphQL input/output types) for the model 
-    graphql_create  # to generate a GraphQL create mutation object (and its associatied GraphQL input/output types) for the model
-    graphql_delete  # to generate a GraphQL delete mutation object (and its associatied GraphQL input/output types) for the model
-    graphql_update  # to generate a GraphQL update mutation object (and its associatied GraphQL input/output types) for the model
+    graphql_query   # to generate a GraphQL query object (and associated GraphQL input/output types) for the model 
+    graphql_create  # to generate a GraphQL create mutation object (and its associated GraphQL input/output types) for the model
+    graphql_delete  # to generate a GraphQL delete mutation object (and its associated GraphQL input/output types) for the model
+    graphql_update  # to generate a GraphQL update mutation object (and its associated GraphQL input/output types) for the model
 
 The default input/output types generated for the model are based on the following settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in you own initializer. Note that the query and delete mutation do not have an input type defined since they currently generated internally:
 
