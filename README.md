@@ -113,7 +113,8 @@ The default input/output types generated for the model are based on the followin
 
 
 ## Other Options
-The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementaion). In the event that you want to assign your own resolvers for your type you can override the default resolver for the type in the macro attribute in the following way:
+
+The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementation). In the event that you want to assign your own resolvers for your type you can override the default resolver for the type in the macro attribute in the following way:
 
 graphql_query resolver: -> (obj, inputs, ctx){ raise GraphQL::ExecutionError.new(inputs.to_h.to_a) }
 
@@ -121,8 +122,9 @@ The method that you assign to the resolver should be a class method that accepts
 
 Some other attributes that you can set on the graphql_query are 
 
-##graphql_query
-scope_methods:  # scope methods aviable to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
+## graphql_query
+
+scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
 description:    # a short description of the query
 arguments:      # a list of argument defintions to override the default arguments, if using your own arguments you will need to override the query resolver to act on those arguments, the default arguments exposed on the query are:
 
@@ -134,7 +136,7 @@ arguments:      # a list of argument defintions to override the default argument
               {:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil},            # a string value that is passed to ActiveRecord query specifying the output order 
               {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil}]  # a string array for use in ActiveRecord query, can be a string or a query/value array to be used by the query ["model.id =? and model.date is not nul]", "1"]
  
-##graphql_delete
+## graphql_delete
 
 ## Development
 
