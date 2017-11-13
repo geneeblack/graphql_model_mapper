@@ -10,7 +10,7 @@ It has been tested on Rails 3.2, 4.1 and 5.0 using Ruby 2.2.8
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'graphql_model_mapper', :git => "git://github.com/geneeblack/graphql_model_mapper.git"
+gem 'graphql_model_mapper'
 ```
 
 And then execute:
