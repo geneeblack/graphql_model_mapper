@@ -80,7 +80,7 @@ module GraphqlModelMapper
               GraphqlModelMapper.set_constant(select_input_type_name, select_input_type)
             end
         
-            total_output_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(name))}QueryPayload"
+            total_output_type_name = "#{GraphqlModelMapper.get_type_name(name)}QueryPayload"
             if GraphqlModelMapper.defined_constant?(total_output_type_name)
               total_output_type = GraphqlModelMapper.get_constant(total_output_type_name)
             else

@@ -7,14 +7,10 @@ require "graphql_model_mapper/schema"
 require "graphql_model_mapper/version"
 
 module GraphqlModelMapper
-  mattr_accessor :type_suffix
-  mattr_accessor :type_prefix
   mattr_accessor :type_case
   mattr_accessor :nesting_strategy
   mattr_accessor :use_authorize
   
-  @@type_suffix = "_"
-  @@type_prefix = ""
   @@type_case = :camelize
   @@nesting_strategy = :shallow
   @@use_authorize = false
@@ -79,13 +75,13 @@ module GraphqlModelMapper
   def self.schema_mutations
     fields = []
     GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_create)}.each { |t|
-      fields << {:name => GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Create", false).to_sym, :field=> t.graphql_create, :model_name=>t.name, :access_type=>:create }
+      fields << {:name => GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Create").to_sym, :field=> t.graphql_create, :model_name=>t.name, :access_type=>:create }
     }
     GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_update)}.each { |t|
-      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Update", false).to_sym, :field=>t.graphql_update, :model_name=>t.name, :access_type=>:update } 
+      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Update").to_sym, :field=>t.graphql_update, :model_name=>t.name, :access_type=>:update } 
     }
     GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_delete)}.each { |t|
-      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Delete", false).to_sym, :field=>t.graphql_delete, :model_name=>t.name, :access_type=>:delete }
+      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Delete").to_sym, :field=>t.graphql_delete, :model_name=>t.name, :access_type=>:delete }
     }
     fields
   end
@@ -144,12 +140,8 @@ module GraphqlModelMapper
     true
   end
  
-  def self.get_type_name(classname, lowercase_first_letter=false)
-    str = "#{GraphqlModelMapper.type_prefix}#{classname.classify.demodulize}#{GraphqlModelMapper.type_suffix}"
-    if lowercase_first_letter && str.length > 0
-      str = str[0].downcase + str[1..-1]
-    end
-    str
+  def self.get_type_name(classname)
+    "#{classname.classify.demodulize}"
   end
 
   def self.get_type_case(str, uppercase=true)
@@ -165,6 +157,8 @@ module GraphqlModelMapper
       else
         str.underscore
       end
+    elsif @@type_case == :classify
+      str
     else
       str
     end

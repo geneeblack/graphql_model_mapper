@@ -46,7 +46,7 @@ module GraphqlModelMapper
           end
 
           def self.get_mutation(name, description, operation_name, resolver, input_type, output_type, input_name, output_name)
-            mutation_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}#{operation_name}")
+            mutation_type_name = "#{GraphqlModelMapper.get_type_name(name)}#{operation_name}".camelize
             return GraphqlModelMapper.get_constant(mutation_type_name) if GraphqlModelMapper.defined_constant?(mutation_type_name)
             mutation_type = GraphQL::Relay::Mutation.define do
               name mutation_type_name
@@ -62,13 +62,13 @@ module GraphqlModelMapper
         end
 
         def self.get_delete_mutation(name, description, operation_name, resolver, arguments, scope_methods, input_type, output_type)            
-            query_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}#{operation_name}")
+            query_type_name = "#{GraphqlModelMapper.get_type_name(name)}#{operation_name}".camelize
             return GraphqlModelMapper.get_constant(query_type_name) if GraphqlModelMapper.defined_constant?(query_type_name) 
             
             model = name.classify.constantize
     
             default_arguments = self.get_default_select_arguments(model, scope_methods)
-            select_input_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}SelectInput")     
+            select_input_type_name = "#{GraphqlModelMapper.get_type_name(name)}SelectInput".camelize    
             if GraphqlModelMapper.defined_constant?(select_input_type_name)
             query_input_object_type = GraphqlModelMapper.get_constant(select_input_type_name)
             else

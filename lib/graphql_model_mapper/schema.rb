@@ -1,8 +1,11 @@
 module GraphqlModelMapper
-    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false)
+    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false, nesting_strategy: :shallow, type_case: :camelize)
 
       return GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase) if GraphqlModelMapper.defined_constant?("GraphqlModelMapperSchema".upcase)
       GraphqlModelMapper.use_authorize = use_authorize
+      GraphqlModelMapper.nesting_strategy = nesting_strategy
+      GraphqlModelMapper.type_case = type_case
+
       if GraphqlModelMapper.use_authorize
         metadata_definitions = {
           authorized: ->(field, authorized_proc) { field.metadata[:authorized_proc] = authorized_proc },

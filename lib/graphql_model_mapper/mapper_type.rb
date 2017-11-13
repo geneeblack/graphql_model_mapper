@@ -40,8 +40,8 @@ module GraphqlModelMapper
         
             
             #typesuffix = method(__method__).parameters.map { |arg| eval arg[1].to_s }.hash.abs.to_i.to_s
-            typesuffix = "#{type_key.to_s.classify}_#{GraphqlModelMapper.underscore(type_sub_key.to_s)}"
-            typename = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}#{typesuffix}")
+            typesuffix = "#{type_key.to_s.classify}#{GraphqlModelMapper.underscore(type_sub_key.to_s)}".camelize
+            typename = "#{GraphqlModelMapper.get_type_name(name)}#{typesuffix}"
             
             return GraphqlModelMapper.get_constant(typename) if GraphqlModelMapper.defined_constant?(typename)
         
@@ -127,7 +127,7 @@ module GraphqlModelMapper
                         next # most likely an invalid association without a class name, skip if other errors are encountered
                     end                    
                     if reflection.macro == :has_many
-                        if [:deep].include?(GraphqlModelMapper.connection_strategy) && type_key == :query
+                        if [:deep].include?(GraphqlModelMapper.nesting_strategy) && type_key == :query
                             connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_key: type_key, type_sub_key: type_sub_key).connection_type} do
                                 if GraphqlModelMapper.use_authorize
                                     authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
