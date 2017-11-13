@@ -1,5 +1,5 @@
 # graphql_model_mapper
-This project is a work in progress is in a pre-alpha state. Many thanks to @AndyKriger [https://github.com/AndyKriger](url) who initiated the original idea on the GraphQL issue thread [https://github.com/rmosolgo/graphql-ruby/issues/945](url). 
+This project is a work in progress and is in a pre-alpha state. Many thanks to @AndyKriger [https://github.com/AndyKriger](url) who initiated and shared the original idea on the GraphQL issue thread [https://github.com/rmosolgo/graphql-ruby/issues/945](url). 
 
 The graphql_model_mapper gem facilitates the generation of GraphQL objects based on the existing definition of your ActiveRecord models.
 
