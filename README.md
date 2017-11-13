@@ -124,17 +124,17 @@ Some other attributes that you can set on the graphql_query are
 
 ## graphql_query
 
-scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
-description:    # a short description of the query
-arguments:      # a list of argument defintions to override the default arguments, if using your own arguments you will need to override the query resolver to act on those arguments, the default arguments exposed on the query are:
+    scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
+    description:    # a short description of the query
+    arguments:      # a list of argument defintions to override the default arguments, if using your own arguments you will need to override the query resolver to act on those arguments, the default arguments exposed on the query are:
 
-[{:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil},        # handled by the default resolver, outputs the top level sql for the operation
-{:name=>:id,    :type=>GraphQL::INT_TYPE, :default=>nil},                 # allows input of an id for top level record selection for the model
-{:name=>:ids,    :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil},   # allows input of an array of ids for top level records selection for the model
-{:name=>:limit, :type=>GraphQL::INT_TYPE, :default=>50},                  # limits the number of records retuurned (defaults to 50 records)
-{:name=>:offset, :type=>GraphQL::INT_TYPE, :default=>nil},                # specifies an offset for the start of the records returned
-{:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil},            # a string value that is passed to ActiveRecord query specifying the output order 
-{:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil}] # a string array for use in ActiveRecord query, can be a string or a query/value array to be used by the query ["model.id =? and model.date is not nul]", "1"]
+    [{:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil},        # handled by the default resolver, outputs the top level sql for the operation
+    {:name=>:id,    :type=>GraphQL::INT_TYPE, :default=>nil},                 # allows input of an id for top level record selection for the model
+    {:name=>:ids,    :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil},   # allows input of an array of ids for top level records selection for the model
+    {:name=>:limit, :type=>GraphQL::INT_TYPE, :default=>50},                  # limits the number of records retuurned (defaults to 50 records)
+    {:name=>:offset, :type=>GraphQL::INT_TYPE, :default=>nil},                # specifies an offset for the start of the records returned
+    {:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil},            # a string value that is passed to ActiveRecord query specifying the output order 
+    {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil}] # a string array for use in ActiveRecord query, can be a string or a query/value array to be used by the query ["model.id =? and model.date is not nul]", "1"]
 
 ## graphql_delete
 
