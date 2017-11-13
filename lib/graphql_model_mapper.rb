@@ -33,8 +33,9 @@ module GraphqlModelMapper
   end
 
   module GraphqlModelMapper_Macros
-    protected
 
+    protected
+    
     def graphql_types(query: {}, update: {}, delete: {}, create: {})
       name = self.name
       define_singleton_method(:graphql_types) do

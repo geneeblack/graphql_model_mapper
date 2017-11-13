@@ -81,6 +81,7 @@ module GraphqlModelMapper
                     begin
                         klass = reflection.klass
                     rescue
+                        GraphqlModelMapper.logger.warning("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
                         next # most likely an invalid association without a class name, skip if other errors are encountered
                     end                    
                     if reflection.macro == :has_many
@@ -124,6 +125,7 @@ module GraphqlModelMapper
                     begin
                         klass = reflection.klass
                     rescue
+                        GraphqlModelMapper.logger.warning("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
                         next # most likely an invalid association without a class name, skip if other errors are encountered
                     end                    
                     if reflection.macro == :has_many
