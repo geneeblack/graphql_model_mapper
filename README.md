@@ -28,47 +28,11 @@ Initially, you will not have any models exposed as GraphQL types. To expose a mo
     graphql_delete  # to generate a GraphQL delete mutation object (and its associated GraphQL input/output types) for the model
     graphql_update  # to generate a GraphQL update mutation object (and its associated GraphQL input/output types) for the model
 
-The default input/output types generated for the model are based on the following settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in you own initializer or individually by using the 
-
-    graphql_type
-    
-macro attribute on the model, passing the individual settings that differ from the defaults. i.e.
-
-
-    graphql_types query: {
-    output_type: {
-        excluded_attributes: [:crypted_password] 
-      }
-    }, 
-    update: {
-      input_type: {
-        excluded_attributes: [:crypted_password] 
-      },
-      output_type: {
-        excluded_attributes: [:crypted_password] 
-      }  
-    }, 
-    create: { 
-      input_type: {
-        excluded_attributes: [:crypted_password] 
-      },
-      output_type: {
-        excluded_attributes: [:crypted_password] 
-      }
-    }, 
-    delete: { 
-      input_type: {
-        excluded_attributes: [:crypted_password] 
-      },
-      output_type: {
-        excluded_attributes: [:crypted_password] 
-      }
-    }
-
+The default input/output types generated for the model are based on the default settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in your own initializer 
 
 Note that the query and delete mutations do not have an input type defined since their arguments are currently generated internally:
 
-
+GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES =
     query: {
         output_type: {
             required_attributes: [],    # attributes required in the type - empty list defaults to no required attributes
@@ -150,6 +114,42 @@ Note that the query and delete mutations do not have an input type defined since
         }
     }
 
+or individually by using the 
+
+    graphql_type
+    
+macro attribute on the model, passing the individual settings that differ from the defaults. i.e.
+
+
+    graphql_types query: {
+    output_type: {
+        excluded_attributes: [:crypted_password] 
+      }
+    }, 
+    update: {
+      input_type: {
+        excluded_attributes: [:crypted_password] 
+      },
+      output_type: {
+        excluded_attributes: [:crypted_password] 
+      }  
+    }, 
+    create: { 
+      input_type: {
+        excluded_attributes: [:crypted_password] 
+      },
+      output_type: {
+        excluded_attributes: [:crypted_password] 
+      }
+    }, 
+    delete: { 
+      input_type: {
+        excluded_attributes: [:crypted_password] 
+      },
+      output_type: {
+        excluded_attributes: [:crypted_password] 
+      }
+    }
 
 ## Other Options
 
