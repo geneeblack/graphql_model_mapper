@@ -190,18 +190,6 @@ module GraphqlModelMapper
     
         def self.graphql_default_types(
             query: {
-            output_type: {
-                required_attributes: [], 
-                excluded_attributes: [], 
-                allowed_attributes: [], 
-                foreign_keys: true, 
-                primary_keys: true, 
-                validation_keys: false, 
-                association_macro: nil, 
-                source_nulls: false,
-                type_key: :query,
-                type_sub_key: :output_type
-            },
             input_type: {
                 required_attributes: [], 
                 excluded_attributes: [], 
@@ -213,7 +201,18 @@ module GraphqlModelMapper
                 source_nulls: false,
                 type_key: :query,
                 type_sub_key: :input_type
-            }
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :query,
+                type_sub_key: :output_type
             },
             update: {
             input_type: {
@@ -248,7 +247,7 @@ module GraphqlModelMapper
                 allowed_attributes: [:id], 
                 foreign_keys: false, 
                 primary_keys: true, 
-                validation_keys: true, 
+                validation_keys: false, 
                 association_macro: nil, 
                 source_nulls: false,
                 type_key: :delete,

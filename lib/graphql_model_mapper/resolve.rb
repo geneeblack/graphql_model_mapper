@@ -20,7 +20,7 @@ module GraphqlModelMapper
               with_deleted_allowed = classmethods.include?(:with_deleted)
               raise GraphQL::ExecutionError.new("error: invalid usage of 'with_deleted', 'with_deleted' method does not exist on '#{ctx.field.name.classify}'") unless with_deleted_allowed
             end
-            implied_includes = self.get_implied_includes(obj_context, self.get_include_fields(ctx))
+            implied_includes = GraphqlModelMapper::Resolve.get_implied_includes(obj_context, GraphqlModelMapper::Resolve.get_include_fields(ctx))
             if !implied_includes.empty? 
               obj_context = obj_context.includes(implied_includes)
               if Rails.version.split(".").first.to_i > 3
@@ -59,7 +59,7 @@ module GraphqlModelMapper
         end
 
         def self.update_resolver(obj, inputs, ctx, name)
-            item = self.nested_update(ctx, name, inputs)
+            item = GraphqlModelMapper::Resolve.nested_update(ctx, name, inputs)
             item
         end
         
@@ -116,7 +116,7 @@ module GraphqlModelMapper
             out = []
                 child_relations = org_field_names.select{|g| g[:parent_line] == b[:line]}
                 if !child_relations.empty?
-                children = GraphqlModelMapper.get_implied_includes(nil, child_relations, false, org_field_names, resolve_fields)
+                children = GraphqlModelMapper::Resolve.get_implied_includes(nil, child_relations, false, org_field_names, resolve_fields)
                 if children.empty?
                     out << b[:name].to_sym if ![:edges, :node].include?(b[:name].to_sym)
                 else
@@ -202,16 +202,16 @@ module GraphqlModelMapper
                   #puts "is_collection"
                   lclinput.each do |i|
                     #puts "#{klass.name}  #{i.to_h}  #{model_name.downcase} #{inputs_root[:id]}"
-                    self.nested_update(ctx, klass.name, i, model_name.downcase, inputs_root[:id])
+                    GraphqlModelMapper::Resolve.nested_update(ctx, klass.name, i, model_name.downcase, inputs_root[:id])
                   end
                 elsif !is_collection && belongs_to
                   #puts "belongs_to"
                   #puts "self.nested_update(#{ctx}, #{model.name}, #{lclinput.to_h}, nil, nil, #{ass.name}, #{inputs_root[:id]}, #{klass.name})"
-                  self.nested_update(ctx, model.name, lclinput, nil, nil, ass.name, inputs_root[:id], klass.name)
+                  GraphqlModelMapper::Resolve.nested_update(ctx, model.name, lclinput, nil, nil, ass.name, inputs_root[:id], klass.name)
                 elsif !is_collection && !belongs_to #has_one
                   #puts "has_one"
                   #puts "self.nested_update(#{ctx}, #{klass.name}, #{lclinput.to_h}, #{model_name.downcase}, #{inputs_root[:id]})"
-                  self.nested_update(ctx, model.name, lclinput, nil, nil, ass.name, inputs_root[:id], klass.name)
+                  GraphqlModelMapper::Resolve.nested_update(ctx, model.name, lclinput, nil, nil, ass.name, inputs_root[:id], klass.name)
                 end
               end
             end

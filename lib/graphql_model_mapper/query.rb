@@ -2,14 +2,7 @@ module GraphqlModelMapper
     module Query
         def self.graphql_query(name: "",
             description: "",
-            resolver: -> (obj, args, ctx) {              
-              items = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, name)
-              {
-                items: items,
-                total: items.length
-              }
-
-            },
+            resolver: nil,
             arguments: [],
             scope_methods: []
           )

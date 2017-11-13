@@ -1,12 +1,7 @@
 module GraphqlModelMapper
     module Mutation
         def self.graphql_update(name: "",description:"",
-            resolver: -> (obj, inputs, ctx){
-                item = GraphqlModelMapper::Resolve.update_resolver(obj, inputs, ctx, name)
-                {
-                  item: item
-                }
-            })
+            resolver: nil)
       
       
             input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :update, type_sub_key: :input_type)
@@ -16,13 +11,7 @@ module GraphqlModelMapper
           end
           
           def self.graphql_delete(name: "", description:"",
-            resolver: -> (obj, inputs, ctx){
-                items = GraphqlModelMapper::Resolver.delete_resolver(obj, inputs, ctx, name)
-                {
-                  total: items.length,
-                  items: items
-                }
-            },
+            resolver: nil,
             arguments: [],
             scope_methods: [])
             
@@ -32,12 +21,7 @@ module GraphqlModelMapper
           end
           
           def self.graphql_create(name: "", description:"",
-            resolver: -> (obj, args, ctx){
-              item = GraphqlModelMapper::Resolver.create_resolver(obj, args, ctx, name)
-              {
-                item: item
-              }
-            })
+            resolver: nil)
             
             input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :create, type_sub_key: :input_type)
             output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :create, type_sub_key: :output_type)
@@ -46,7 +30,7 @@ module GraphqlModelMapper
           end
 
           def self.get_mutation(name, description, operation_name, resolver, input_type, output_type, input_name, output_name)
-            mutation_type_name = "#{GraphqlModelMapper.get_type_name(name)}#{operation_name}".camelize
+            mutation_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}#{operation_name}")
             return GraphqlModelMapper.get_constant(mutation_type_name) if GraphqlModelMapper.defined_constant?(mutation_type_name)
             mutation_type = GraphQL::Relay::Mutation.define do
               name mutation_type_name
@@ -62,13 +46,13 @@ module GraphqlModelMapper
         end
 
         def self.get_delete_mutation(name, description, operation_name, resolver, arguments, scope_methods, input_type, output_type)            
-            query_type_name = "#{GraphqlModelMapper.get_type_name(name)}#{operation_name}".camelize
+            query_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}#{operation_name}")
             return GraphqlModelMapper.get_constant(query_type_name) if GraphqlModelMapper.defined_constant?(query_type_name) 
             
             model = name.classify.constantize
     
             default_arguments = self.get_default_select_arguments(model, scope_methods)
-            select_input_type_name = "#{GraphqlModelMapper.get_type_name(name)}SelectInput".camelize    
+            select_input_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}SelectInput")     
             if GraphqlModelMapper.defined_constant?(select_input_type_name)
             query_input_object_type = GraphqlModelMapper.get_constant(select_input_type_name)
             else

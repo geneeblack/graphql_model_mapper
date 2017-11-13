@@ -5,12 +5,23 @@ require "graphql_model_mapper/query"
 require "graphql_model_mapper/resolve"
 require "graphql_model_mapper/schema"
 require "graphql_model_mapper/version"
+require 'graphql_model_mapper/railtie' if defined?(Rails)
 
 module GraphqlModelMapper
   mattr_accessor :type_case
   mattr_accessor :nesting_strategy
   mattr_accessor :use_authorize
   
+  class << self
+    attr_writer :logger
+
+    def logger
+      @logger ||= Logger.new($stdout).tap do |log|
+        log.progname = self.name
+      end
+    end
+  end
+
   @@type_case = :camelize
   @@nesting_strategy = :shallow
   @@use_authorize = false
@@ -28,25 +39,50 @@ module GraphqlModelMapper
       end
     end
 
-    def graphql_update(name: self.name, description:"", resolver: nil)
+    def graphql_update(name: self.name, description:"", resolver: -> (obj, inputs, ctx){
+      GraphqlModelMapper.logger.info "********************update"
+      item = GraphqlModelMapper::Resolve.update_resolver(obj, inputs, ctx, name)
+        {
+          item: item
+        }
+      })
       define_singleton_method(:graphql_update) do
         GraphqlModelMapper::Mutation.graphql_update(name: name, description: description, resolver: resolver)
       end
     end
     
-    def graphql_delete(name: self.name, description:"", resolver: nil, arguments: [], scope_methods: [])
+    def graphql_delete(name: self.name, description:"", resolver: -> (obj, inputs, ctx){
+        GraphqlModelMapper.logger.info "********************delete"
+        items = GraphqlModelMapper::Resolve.delete_resolver(obj, inputs, ctx, name)
+        {
+          total: items.length,
+          items: items
+        }
+      }, arguments: [], scope_methods: [])
       define_singleton_method(:graphql_delete) do
         GraphqlModelMapper::Mutation.graphql_delete(name: name, description: description, resolver: resolver, scope_methods: scope_methods)
       end
     end
     
-    def graphql_create(name: self.name, description:"", resolver: nil) 
+    def graphql_create(name: self.name, description:"", resolver:  -> (obj, args, ctx){
+      GraphqlModelMapper.logger.info "********************create"
+      item = GraphqlModelMapper::Resolve.create_resolver(obj, args, ctx, name)
+        {
+          item: item
+        }
+      }) 
       define_singleton_method(:graphql_create) do
-        GraphqlModelMapper::Mutation.graphql_delete(name: name, description: description, resolver: resolver)
+        GraphqlModelMapper::Mutation.graphql_create(name: name, description: description, resolver: resolver)
       end
     end
 
-    def graphql_query(name: self.name, description: "", resolver: nil, arguments: [], scope_methods: [])                      
+    def graphql_query(name: self.name, description: "", resolver: -> (obj, args, ctx) {              
+        items = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, name)
+        {
+          items: items,
+          total: items.length
+        }
+      }, arguments: [], scope_methods: [])                      
       define_singleton_method(:graphql_query) do
         GraphqlModelMapper::Query.graphql_query(name: name, description: description, resolver: resolver, scope_methods: scope_methods)
       end
@@ -75,13 +111,13 @@ module GraphqlModelMapper
   def self.schema_mutations
     fields = []
     GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_create)}.each { |t|
-      fields << {:name => GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Create").to_sym, :field=> t.graphql_create, :model_name=>t.name, :access_type=>:create }
+      fields << {:name => GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Create", false).to_sym, :field=> t.graphql_create, :model_name=>t.name, :access_type=>:create }
     }
     GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_update)}.each { |t|
-      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Update").to_sym, :field=>t.graphql_update, :model_name=>t.name, :access_type=>:update } 
+      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Update", false).to_sym, :field=>t.graphql_update, :model_name=>t.name, :access_type=>:update } 
     }
     GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_delete)}.each { |t|
-      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Delete").to_sym, :field=>t.graphql_delete, :model_name=>t.name, :access_type=>:delete }
+      fields << {:name =>GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(t.name)}Delete", false).to_sym, :field=>t.graphql_delete, :model_name=>t.name, :access_type=>:delete }
     }
     fields
   end
@@ -140,8 +176,12 @@ module GraphqlModelMapper
     true
   end
  
-  def self.get_type_name(classname)
-    "#{classname.classify.demodulize}"
+  def self.get_type_name(classname, lowercase_first_letter=false)
+    str = "#{classname.classify.demodulize}"
+    if lowercase_first_letter && str.length > 0
+      str = str[0].downcase + str[1..-1]
+    end
+    str
   end
 
   def self.get_type_case(str, uppercase=true)
