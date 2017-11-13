@@ -1,5 +1,5 @@
 # graphql_model_mapper
-This project is a work in progress and is in a pre-alpha state. Many thanks to @AndyKriger [https://github.com/AndyKriger](url) who initiated and shared the original idea on the GraphQL issue thread [https://github.com/rmosolgo/graphql-ruby/issues/945](url). 
+This project is a work in progress and is in a pre-alpha state. Many thanks to @AndyKriger https://github.com/AndyKriger who initiated and shared the original idea on the GraphQL issue thread https://github.com/rmosolgo/graphql-ruby/issues/945. 
 
 The graphql_model_mapper gem facilitates the generation of GraphQL objects based on the definition of your existing ActiveRecord models.
 
@@ -300,7 +300,7 @@ GraphqlModelMapper requires an optional ability method on your current_user in o
 
 ## Schema implementation
 
-Once you have your models decorated with the graphql_query/graphql_update/graphql_create/graphql_delete attributes the next step is implementing your schema and adding it to your controller. For this example I am using a schema definition located at app/graphql/graphql_model_mapper_schema.rb. I have used [https://github.com/exAspArk/graphql-errors](url) to handle errors generated from the resolve methods. It is not required but it provides an easy way to setup error handling.
+Once you have your models decorated with the graphql_query/graphql_update/graphql_create/graphql_delete attributes the next step is implementing your schema and adding it to your controller. For this example I am using a schema definition located at app/graphql/graphql_model_mapper_schema.rb. I have used https://github.com/exAspArk/graphql-errors to handle errors generated from the resolve methods. It is not required but it provides an easy way to setup error handling.
 
     #app/graphql/graphql_model_mapper_schema.rb
     require 'graphql_model_mapper'
@@ -337,7 +337,7 @@ I recommend that you install
 
     gem "graphiql-rails"
 
-so you may access and test your GraphQL queries. It is located at [https://github.com/rmosolgo/graphiql-rails](url). Once you have graphiql-rails you can setup the route 
+so you may access and test your GraphQL queries. It is located at https://github.com/rmosolgo/graphiql-rails. Once you have graphiql-rails you can setup the route 
 
     #config/routes.rb
     [YourApp]::Application.routes.draw do
@@ -407,7 +407,7 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/graphql_model_mapper.
+Bug reports and pull requests are welcome on GitHub at https://github.com/geneeblack/graphql_model_mapper.
 
 ## License
 
