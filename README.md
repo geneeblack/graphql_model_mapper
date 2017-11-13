@@ -1,7 +1,7 @@
 # graphql_model_mapper
 This project is a work in progress and is in a pre-alpha state. Many thanks to @AndyKriger [https://github.com/AndyKriger](url) who initiated and shared the original idea on the GraphQL issue thread [https://github.com/rmosolgo/graphql-ruby/issues/945](url). 
 
-The graphql_model_mapper gem facilitates the generation of GraphQL objects based on the existing definition of your ActiveRecord models.
+The graphql_model_mapper gem facilitates the generation of GraphQL objects based on the definition of your existing ActiveRecord models.
 
 ## Installation
 
@@ -209,7 +209,7 @@ Follow the setup for cancancan and create an app/model/ability.rb file to setup 
         end
 
 
-GraphqlModelMapper requires an Ability method on your current_use in order to check the context current_users authorization to access a GraphQL objects model implementation.
+GraphqlModelMapper requires an optional ability method on your current_user in order to check the context current_users authorization to access a GraphQL objects model implementation.
 
     class User < ActiveRecord::Base
         def ability
@@ -221,7 +221,7 @@ GraphqlModelMapper requires an Ability method on your current_use in order to ch
 
 ## Schema implementation
 
-Once you have your models decorated with the graphql_ attributes the next step is implementing your schema and adding it to your contoller. For this example I am using a schema defintion located at app/graphql/graphql_model_mapper_schema.rb. I have used [https://github.com/exAspArk/graphql-errors](url) to handle errors generated from the resolve methods. It is not required but it provides an easy way to setup error handling.
+Once you have your models decorated with the graphql_query/graphql_update/graphql_create/graphql_delete attributes the next step is implementing your schema and adding it to your controller. For this example I am using a schema definition located at app/graphql/graphql_model_mapper_schema.rb. I have used [https://github.com/exAspArk/graphql-errors](url) to handle errors generated from the resolve methods. It is not required but it provides an easy way to setup error handling.
 
     #app/graphql/graphql_model_mapper_schema.rb
     require 'graphql_model_mapper'
@@ -262,6 +262,7 @@ so you may access and test your GraphQL queries. It is located at [https://githu
       if Rails.env.development? || Rails.env.staging?   # you can restrict access to graphiql to specific environments here
         mount GraphiQL::Rails::Engine, at: "/graphiql", graphql_path: "/graphql"
       end
+
       post "/graphql", to: "graphql#execute"
 
       ....
@@ -276,13 +277,13 @@ you can then reference your previously assigned schema in  app/controllers/graph
             query = params[:query]
             operation_name = params[:operationName]
             context = {
-            # Query context goes here, for example:
-            current_user: current_user
+                # Query context goes here, for example:
+                current_user: current_user
             }
             
             begin
             if (logged_in?)# && current_user.is_admin?)
-                Ability.new(current_user)        
+                Ability.new(current_user) if GraphqlModelMapper.use_authorize # set on GraphqlModelMapper.Schema initialization
             elsif Rails.env != "development"
                 query = nil
             end
@@ -293,14 +294,15 @@ you can then reference your previously assigned schema in  app/controllers/graph
         end
 
         private
+        # this class is exercised when use_authorize 
         class ExceptFilter
             def self.call(schema_member, context)
-            #puts schema_member
-            # true if field should be excluded, false if it should be included
-            return false unless authorized_proc = schema_member.metadata[:authorized_proc]
-            model_name = schema_member.metadata[:model_name]
-            access_type = schema_member.metadata[:access_type]
-            !authorized_proc.call(context, model_name, access_type)
+                return false unless GraphqlModelMapper.use_authorize
+                # true if field should be excluded, false if it should be included
+                return false unless authorized_proc = schema_member.metadata[:authorized_proc]
+                model_name = schema_member.metadata[:model_name]
+                access_type = schema_member.metadata[:access_type]
+                !authorized_proc.call(context, model_name, access_type)
             end
         end
 
