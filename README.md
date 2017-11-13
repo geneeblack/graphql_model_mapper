@@ -177,9 +177,28 @@ If you want to assign your own resolvers for your type you can override the defa
 
     graphql_query resolver: -> (obj, inputs, ctx){ raise GraphQL::ExecutionError.new(inputs.to_h.to_a) }
 
-The method that you assign to the resolver should be a class method that accepts and orchestrates the parameters passed from GraphQL in the resolve. In this example it is simply calling a GraphQL::ExecutionError to output the contents of the input parameters. These methods could be anywhere in your application, they are not limited to the model on which they are defined.
+The method that you assign to the resolver should either be self contained or call a class method that accepts and orchestrates the parameters passed from GraphQL in the resolve. In this example it is simply calling a GraphQL::ExecutionError to output the contents of the input parameters. These methods could be anywhere in your application, they are not limited to the model on which they are defined.
 
-Some other attributes that you can set on the graphql_query are 
+When returning items to populate the appropriate output type, return them as a hash value shaped to fir that output types definition. GraphQL will take care of the final mapping and shapping of the models item(s)
+
+    resolver: -> (obj, inputs, ctx){
+        items = YourClass.method_that_returns_items(obj, inputs, ctx, name)
+        {
+            total: items.length,
+            items: items
+        }
+    }
+or
+
+    resolver: -> (obj, inputs, ctx){
+        items = YourClass.method_that_returns_an_item(obj, inputs, ctx, name)
+        {
+            items: items
+        }
+    }
+
+
+Some other attributes that you can set on the graphql_query in addition to the resolver are 
 
 ## graphql_query
 
