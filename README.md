@@ -352,7 +352,7 @@ so you may access and test your GraphQL queries. It is located at https://github
       ....
     end
 
-you can then reference your previously assigned schema in  app/controllers/graphql_contoller.rb
+you can then reference your previously assigned schema in  app/controllers/graphql_controller.rb
 
     #app/controllers/graphql_controller
     class GraphqlController < ApplicationController
