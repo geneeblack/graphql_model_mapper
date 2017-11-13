@@ -22,10 +22,10 @@ Or install it yourself as:
 
 Initially, you will not have any models exposed as GraphQL types. To expose a model you can add the following macro attributes to your model definition:
 
-    graphql_query   ## to generate a GraphQL query object (and associatied GraphQL input/output types) for the model 
-    graphql_create  ## to generate a GraphQL create mutation object (and its associatied GraphQL input/output types) for the model
-    graphql_delete  ## to generate a GraphQL delete mutation object (and its associatied GraphQL input/output types) for the model
-    graphql_update  ## to generate a GraphQL update mutation object (and its associatied GraphQL input/output types) for the model
+    graphql_query   # to generate a GraphQL query object (and associatied GraphQL input/output types) for the model 
+    graphql_create  # to generate a GraphQL create mutation object (and its associatied GraphQL input/output types) for the model
+    graphql_delete  # to generate a GraphQL delete mutation object (and its associatied GraphQL input/output types) for the model
+    graphql_update  # to generate a GraphQL update mutation object (and its associatied GraphQL input/output types) for the model
 
 The default input/output types generated for the model are based on the following settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in you own initializer. Note that the query and delete mutation do not have an input type defined since they currently generated internally:
 
@@ -114,7 +114,7 @@ The default input/output types generated for the model are based on the followin
 
 ## Other Options
 
-The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementation). In the event that you want to assign your own resolvers for your type you can override the default resolver for the type in the macro attribute in the following way:
+The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementation). In the event that you want to assign your own resolvers for your type you can override the default resolver for the type on the macro attribute in the following way:
 
 graphql_query resolver: -> (obj, inputs, ctx){ raise GraphQL::ExecutionError.new(inputs.to_h.to_a) }
 
@@ -124,8 +124,8 @@ Some other attributes that you can set on the graphql_query are
 
 ## graphql_query
 
-    scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
     description:    # a short description of the query
+    scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they do not collide with other tables which may be included in the associations
     arguments:      # a list of argument definitions to override the default arguments, if using your own arguments you will need to override the query resolver to act on those arguments, the default arguments exposed on the query are:
 
     [{:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil},        # handled by the default resolver, outputs the top level sql for the operation
@@ -137,6 +137,20 @@ Some other attributes that you can set on the graphql_query are
     {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil}] # a string array for use in ActiveRecord query, can be a string or a query/value array to be used by the query ["model.id =? and model.date is not nul]", "1"]
 
 ## graphql_delete
+    description:
+    scope_methods:
+    arguments:
+    resolver:
+
+## graphql_update
+    
+    description:
+    resolver:
+
+## graphql_create
+
+    description:
+    resolver:
 
 ## Development
 
