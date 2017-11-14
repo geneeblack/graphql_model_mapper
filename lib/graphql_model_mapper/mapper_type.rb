@@ -333,7 +333,12 @@ module GraphqlModelMapper
             else
                 case db_sql_type.to_sym #these are strings not symbols
                 when :geometry, :multipolygon, :polygon
-                    nullable ? GraphqlModelMapper::GEOMETRY_TYPE : !GraphqlModelMapper::GEOMETRY_TYPE
+                    case db_type
+                        when :string
+                            nullable ? GraphqlModelMapper::GEOMETRY_OBJECT_TYPE : !GraphqlModelMapper::GEOMETRY_OBJECT_TYPE
+                        else
+                            nullable ? GraphqlModelMapper::GEOMETRY_STRING_TYPE : !GraphqlModelMapper::GEOMETRY_STRING_TYPE
+                    end
                 else
                     nullable ? GraphQL::STRING_TYPE : !GraphQL::STRING_TYPE
                 end

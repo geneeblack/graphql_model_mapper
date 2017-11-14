@@ -80,13 +80,22 @@ module GraphqlModelMapper
     end
   end
 
-  GraphqlModelMapper::GEOMETRY_TYPE = GraphQL::ScalarType.define do
-    name "Geometry"
+  GraphqlModelMapper::GEOMETRY_OBJECT_TYPE = GraphQL::ScalarType.define do
+    name "GeometryObject"
     description "The Geometry scalar type enables the serialization of Geometry data"
-  
+    require 'geo_ruby/geojson' if !defined?(GeoRuby).nil?
+
     coerce_input ->(value, ctx) do
         begin
-            value.nil? ? nil : GeoRuby::SimpleFeatures::Geometry.from_geojson(value)
+            if value.nil? 
+              nil 
+            elsif !defined?(GeoRuby::GeojsonParser).nil?
+              GeoRuby::SimpleFeatures::Geometry.from_geojson(value) 
+            elsif !defined?(RGeo::GeoJSON).nil?
+              RGeo::GeoJSON.decode(value, json_parser: :json)
+            else 
+              raise ArgumentError
+            end
         rescue ArgumentError
             raise GraphQL::CoercionError, "cannot coerce `#{value.inspect}` to json"
         end
@@ -94,6 +103,29 @@ module GraphqlModelMapper
     coerce_result ->(value, ctx) { (value.nil? ? "" : (defined?(GeoRuby) == "constant" && value.kind_of?(GeoRuby::SimpleFeatures::Geometry) ? value.to_json : (defined?(RGeo) == "constant" && defined?(RGeo::GeoJSON) == "constant" && RGeo::Geos.is_capi_geos?(value) ? RGeo::GeoJSON.encode(value).to_json : value))) }
   end
   
+  GraphqlModelMapper::GEOMETRY_STRING_TYPE = GraphQL::ScalarType.define do
+    name "GeometryString"
+    description "The Geometry scalar type enables the serialization of Geometry data"
+    require 'geo_ruby/geojson' if !defined?(GeoRuby).nil?
+
+    coerce_input ->(value, ctx) do
+        begin
+            if value.nil? 
+              nil 
+            elsif !defined?(GeoRuby::GeojsonParser).nil?
+              GeoRuby::SimpleFeatures::Geometry.from_geojson(value).as_wkt 
+            elsif !defined?(RGeo::GeoJSON).nil?
+              RGeo::GeoJSON.decode(value, json_parser: :json).as_text
+            else 
+              raise ArgumentError
+            end
+        rescue ArgumentError
+            raise GraphQL::CoercionError, "cannot coerce `#{value.inspect}` to json"
+        end
+    end
+    coerce_result ->(value, ctx) { (value.nil? ? "" : (defined?(GeoRuby) == "constant" && value.kind_of?(GeoRuby::SimpleFeatures::Geometry) ? value.to_json : (defined?(RGeo) == "constant" && defined?(RGeo::GeoJSON) == "constant" && RGeo::Geos.is_capi_geos?(value) ? RGeo::GeoJSON.encode(value).to_json : value))) }
+  end
+
   GraphqlModelMapper::DATE_TYPE = GraphQL::ScalarType.define do
     name "Date"
     description "The Date scalar type enables the serialization of date data to/from iso8601"
