@@ -91,7 +91,7 @@ module GraphqlModelMapper
             raise GraphQL::CoercionError, "cannot coerce `#{value.inspect}` to json"
         end
     end
-    coerce_result ->(value, ctx) { (value.nil? ? "" : (defined?(GeoRuby) == "constant" && value.kind_of?(GeoRuby::SimpleFeatures::Geometry) ? value.to_json : (defined?(RGeo) == "constant" && defined?(RGeo::GeoJSON) == "constant" && value.kind_of?(RGeo::Geos::CAPIPolygonImpl) ? RGeo::GeoJSON.encode(value).to_json : value))) }
+    coerce_result ->(value, ctx) { (value.nil? ? "" : (defined?(GeoRuby) == "constant" && value.kind_of?(GeoRuby::SimpleFeatures::Geometry) ? value.to_json : (defined?(RGeo) == "constant" && defined?(RGeo::GeoJSON) == "constant" && RGeo::Geos.is_capi_geos?(value) ? RGeo::GeoJSON.encode(value).to_json : value))) }
   end
   
   GraphqlModelMapper::DATE_TYPE = GraphQL::ScalarType.define do

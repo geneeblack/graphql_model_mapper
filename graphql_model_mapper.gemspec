@@ -31,6 +31,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.required_ruby_version = '>= 2.1'
+  spec.add_runtime_dependency "graphql", ['>= 1.7.5']
   spec.add_runtime_dependency "activesupport", ['>= 3.2.22.5']
   spec.add_runtime_dependency "activemodel", ['>= 3.2.22.5']
   spec.add_runtime_dependency "activerecord", ['>= 3.2.22.5']
