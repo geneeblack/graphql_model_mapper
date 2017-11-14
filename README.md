@@ -32,87 +32,111 @@ Initially, you will not have any models exposed as GraphQL types. To expose a mo
 
 The default input/output types generated for the model are based on the default settings (which may be overriden by initializing GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES in your own initializer 
 
-Note that the query and delete mutations do not have an input type defined since their arguments are currently generated internally:
-
-    GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES =
-    query: {
-        output_type: {
-            required_attributes: [],    # attributes required in the type - empty list defaults to no required attributes
-            excluded_attributes: [],    # exclude these attributes from the type - empty list defaults to no excluded attributes
-            allowed_attributes: [],     # only allow these attributes in the type - empty list defaults to all attributes allowed
-            foreign_keys: true,         # generate the foreign keys on the type
-            primary_keys: true,         # generate the primary keys for the type
-            validation_keys: false,     # generate non-nullable validation keys for the type
-            association_macro: nil,     # generate the associations fo the type - nil defaults to all associations (other than those that are polymorphic), you may also specify :has_many or :belongs_to or :has_one
-            source_nulls: false,        # use the null definitions that are defined by the database for the exposed attributes
-            type_key: :query,           # internal identifier for the query/mutation type for which this type definition applies
-            type_sub_key: :output_type  # internal sub-identifier for the input/output type for which this definition applies
-        }
-    },
-    update: {
-        input_type: {
-            required_attributes: [], 
-            excluded_attributes: [], 
-            allowed_attributes: [], 
-            foreign_keys: true, 
-            primary_keys: true, 
-            validation_keys: false, 
-            association_macro: nil, 
-            source_nulls: false,
-            type_key: :update,
-            type_sub_key: :input_type
+    #config/initializers/grapqhql_model_mapper_init.rb
+    GraphqlModelMapper::GRAPHQL_DEFAULT_TYPES = {
+        query: {
+            input_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :query,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :query,
+                type_sub_key: :output_type
+            }
         },
-        output_type: {
-            required_attributes: [], 
-            excluded_attributes: [], 
-            allowed_attributes: [], 
-            foreign_keys: true, 
-            primary_keys: true, 
-            validation_keys: false, 
-            association_macro: nil, 
-            source_nulls: true,
-            type_key: :update,
-            type_sub_key: :output_type
-        }
-    },
-    delete: {
-        output_type: {
-            required_attributes: [], 
-            excluded_attributes: [], 
-            allowed_attributes: [], 
-            foreign_keys: false, 
-            primary_keys: true, 
-            validation_keys: false, 
-            association_macro: nil, 
-            source_nulls: true,
-            type_key: :delete,
-            type_sub_key: :output_type
-        }
-    },
-    create: {
-        input_type: {
-            required_attributes: [], 
-            excluded_attributes: [], 
-            allowed_attributes: [], 
-            foreign_keys: true, 
-            primary_keys: false, 
-            validation_keys: false, 
-            association_macro: :has_many, 
-            source_nulls: false,
-            type_key: :create,
-            type_sub_key: :input_type
+        update: {
+            input_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :update,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: true,
+                type_key: :update,
+                type_sub_key: :output_type
+            }
         },
-        output_type: {
-            required_attributes: [], 
-            excluded_attributes: [], 
-            allowed_attributes: [], 
-            foreign_keys: true, 
-            primary_keys: true, 
-            validation_keys: false, 
-            association_macro: nil, 
-            source_nulls: true,
-            type_key: :create,
-            type_sub_key: :output_type
+        delete: {
+            input_type: {
+                required_attributes: [:id], 
+                excluded_attributes: [], 
+                allowed_attributes: [:id], 
+                foreign_keys: false, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :delete,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: false, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: true,
+                type_key: :delete,
+                type_sub_key: :output_type
+            }
+        },
+        create: {
+            input_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: false, 
+                validation_keys: false, 
+                association_macro: :has_many, 
+                source_nulls: false,
+                type_key: :create,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: true,
+                type_key: :create,
+                type_sub_key: :output_type
+            }
         }
     }
 
@@ -120,7 +144,7 @@ or individually by using the
 
     graphql_type
     
-macro attribute on the model, passing the individual settings that differ from the defaults. i.e.
+macro attribute on the model, passing the individual settings that differ from the defaults. These will be merged into the default values. i.e.
 
 
     graphql_types query: {
@@ -153,6 +177,115 @@ macro attribute on the model, passing the individual settings that differ from t
       }
     }
 
+or you can specify the **graphql_types** attribute on the model and initialize your own constant for the model in an initializer, these settings will not be merged into the default settings, so you will need to fully elucidate the types
+
+    #config/initializers/grapqhql_model_mapper_init.rb
+    GraphqlModelMapper::[YOUR_MODEL_NAME_CLASSIFIED_AND_CAPITALIZED]_GRAPHQL_DEFAULT_TYPES = {
+        query: {
+            input_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :query,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :query,
+                type_sub_key: :output_type
+            }
+        },
+        update: {
+            input_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :update,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: true,
+                type_key: :update,
+                type_sub_key: :output_type
+            }
+        },
+        delete: {
+            input_type: {
+                required_attributes: [:id], 
+                excluded_attributes: [], 
+                allowed_attributes: [:id], 
+                foreign_keys: false, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: false,
+                type_key: :delete,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: false, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: true,
+                type_key: :delete,
+                type_sub_key: :output_type
+            }
+        },
+        create: {
+            input_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: false, 
+                validation_keys: false, 
+                association_macro: :has_many, 
+                source_nulls: false,
+                type_key: :create,
+                type_sub_key: :input_type
+            },
+            output_type: {
+                required_attributes: [], 
+                excluded_attributes: [], 
+                allowed_attributes: [], 
+                foreign_keys: true, 
+                primary_keys: true, 
+                validation_keys: false, 
+                association_macro: nil, 
+                source_nulls: true,
+                type_key: :create,
+                type_sub_key: :output_type
+            }
+        }
+    }
 ## Other Options
 
 The query and mutation objects have a default resolver defined that may be sufficient for your needs (with the exception of the create mutation which most likely will not be adequate for your implementation, currently it simply validates the input and does not attempt to add the record). 

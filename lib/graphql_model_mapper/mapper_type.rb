@@ -7,16 +7,17 @@ module GraphqlModelMapper
             delete: {},
             create: {}
             )
-            typesuffix = method(__method__).parameters.map { |arg| eval arg[1].to_s }.hash.abs.to_i.to_s
-            return GraphqlModelMapper.get_constant("#{name.upcase}#{typesuffix}_GRAPHQL_DEFAULT_TYPES") if GraphqlModelMapper.const_defined?("#{name.upcase}#{typesuffix}_GRAPHQL_DEFAULT_TYPES") 
-              
+            #typesuffix = method(__method__).parameters.map { |arg| eval arg[1].to_s }.hash.abs.to_i.to_s
+            GraphqlModelMapper.logger.info("#{name.upcase}") if GraphqlModelMapper.const_defined?("#{name.upcase}_GRAPHQL_DEFAULT_TYPES")  
+            return GraphqlModelMapper.get_constant("#{name.upcase}_GRAPHQL_DEFAULT_TYPES") if GraphqlModelMapper.const_defined?("#{name.upcase}_GRAPHQL_DEFAULT_TYPES") 
+            #GraphqlModelMapper.logger.info "#{name.upcase}_GRAPHQL_DEFAULT_TYPES"
             graphql_type = {}
             graphql_type[:query] = query
             graphql_type[:update] = update
             graphql_type[:delete] = delete
             graphql_type[:create] = create
             merged_graphql_type = self.graphql_default_types.deep_merge(graphql_type)
-            GraphqlModelMapper.set_constant("#{name.upcase}#{typesuffix}_GRAPHQL_DEFAULT_TYPES", merged_graphql_type)
+            GraphqlModelMapper.set_constant("#{name.upcase}_GRAPHQL_DEFAULT_TYPES", merged_graphql_type)
 
             merged_graphql_type
         end
