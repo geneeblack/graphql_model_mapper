@@ -326,7 +326,7 @@ When returning items to populate the appropriate output type, return them as a h
 or
 
     resolver: -> (obj, inputs, ctx){
-        items = YourClass.method_that_returns_an_item(obj, inputs, ctx, name)
+        item = YourClass.method_that_returns_an_item(obj, inputs, ctx, name)
         {
             item: item
         }
