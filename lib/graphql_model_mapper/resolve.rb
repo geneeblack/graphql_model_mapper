@@ -20,7 +20,9 @@ module GraphqlModelMapper
               with_deleted_allowed = classmethods.include?(:with_deleted)
               raise GraphQL::ExecutionError.new("error: invalid usage of 'with_deleted', 'with_deleted' method does not exist on '#{ctx.field.name.classify}'") unless with_deleted_allowed
             end
-            implied_includes = GraphqlModelMapper::Resolve.get_implied_includes(obj_context, GraphqlModelMapper::Resolve.get_include_fields(ctx))
+
+            implied_includes = self.get_implied_includes(name.classify.constantize, ctx.ast_node)
+
             if !implied_includes.empty? 
               obj_context = obj_context.includes(implied_includes)
               if Rails.version.split(".").first.to_i > 3
@@ -99,50 +101,66 @@ module GraphqlModelMapper
             item
         end
 
-
-          # build includes list for associated tables in use in the query, skips [:nodes, :edges] and result entries while walking references
-        def self.get_implied_includes(model, field_names=nil, first=true, org_field_names=nil, resolve_fields=false)
-            if first
-            org_field_names = field_names
-            # associations fields that are on the model
-            a = field_names.select{|m| model.reflect_on_all_associations.map(&:name).include?(m[:name].to_sym)}.select{|m| field_names.map{|m| m[:parent_line]}.include?(m[:line])}
-            # base field names that have no parent, get the lowest number parent_line on the associated field names
-            a = a.select{|o| o[:parent_line] == a.map{|v| v[:parent_line]}.sort.first}
-            else
-            a = field_names
-            end
-            final_out = []
-            a.each do |b|
-            out = []
-                child_relations = org_field_names.select{|g| g[:parent_line] == b[:line]}
-                if !child_relations.empty?
-                children = GraphqlModelMapper::Resolve.get_implied_includes(nil, child_relations, false, org_field_names, resolve_fields)
-                if children.empty?
-                    out << b[:name].to_sym if ![:edges, :node].include?(b[:name].to_sym)
-                else
-                    if ![:edges, :node].include?(b[:name].to_sym)
-                    out << { b[:name].to_sym => children.flatten }
-                    else
-                    out = children.flatten
-                    end
-                end
-                end
-                if resolve_fields && out.empty?
-                out << b[:name].to_sym
-                end
-                final_out << out if !out.empty?
-            end
-            final_out
+          def self.using_relay_pagination?(selection)
+          selection.name == 'edges'
+        end
+    
+        def self.using_is_items_collection?(selection)
+          selection.name == 'items'
         end
 
-        def self.get_include_fields(ctx)
-            fieldnames = []
-            visitor = GraphQL::Language::Visitor.new(ctx.query.document)
-            visitor[GraphQL::Language::Nodes::Field] << ->(node, parent) { fieldnames << {:line=>node.line, :parent_line=>parent.line, :parent=>parent.name, :name=>node.name} }
-            visitor.visit
-            fieldnames
+        def self.using_nodes_pagination?(selection)
+          selection.name == 'nodes'
         end
 
+        def self.has_reflection_with_name?(class_name, selection_name)
+          class_name.reflect_on_all_associations.select{|m|m.name == selection_name.to_sym}.present?
+        end
+
+        def self.map_relay_pagination_depencies(class_name, selection, dependencies)
+          node_selection = selection.selections.find { |sel| sel.name == 'node' }
+    
+          if node_selection.present?
+            get_implied_includes(class_name, node_selection, dependencies)
+          else
+            dependencies
+          end
+        end
+
+        def self.get_implied_includes(class_name, ast_node, dependencies={})
+          ast_node.selections.each do |selection|
+            name = selection.name
+    
+            if using_relay_pagination?(selection)
+              map_relay_pagination_depencies(class_name, selection, dependencies)
+              next
+            end
+    
+            if using_nodes_pagination?(selection)
+              get_implied_includes(class_name, selection, dependencies)
+              next
+            end
+
+            if using_is_items_collection?(selection)
+              get_implied_includes(class_name, selection, dependencies)
+              next
+            end
+    
+            if has_reflection_with_name?(class_name, name)
+              begin
+                current_class_name = selection.name.singularize.classify.constantize
+                dependencies[name] = get_implied_includes(current_class_name, selection)
+              rescue NameError
+                selection_name = class_name.reflections.with_indifferent_access[selection.name].options[:class_name]
+                current_class_name = selection_name.singularize.classify.constantize
+                dependencies[selection.name.to_sym] = get_implied_includes(current_class_name, selection)
+                next
+              end
+            end
+          end
+          dependencies
+        end
+    
 
         def self.nested_update(ctx, model_name, inputs, child_name=nil, child_id=nil, parent_name=nil, parent_id=nil, klass_name=nil)
             model = model_name.classify.constantize
