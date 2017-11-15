@@ -1,5 +1,6 @@
 require "graphql"
 require "graphql_model_mapper/mapper_type"
+require "graphql_model_mapper/custom_type"
 require "graphql_model_mapper/mutation"
 require "graphql_model_mapper/query"
 require "graphql_model_mapper/resolve"

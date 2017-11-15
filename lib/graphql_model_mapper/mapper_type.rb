@@ -7,10 +7,7 @@ module GraphqlModelMapper
             delete: {},
             create: {}
             )
-            #typesuffix = method(__method__).parameters.map { |arg| eval arg[1].to_s }.hash.abs.to_i.to_s
-            GraphqlModelMapper.logger.info("#{name.upcase}") if GraphqlModelMapper.const_defined?("#{name.upcase}_GRAPHQL_DEFAULT_TYPES")  
             return GraphqlModelMapper.get_constant("#{name.upcase}_GRAPHQL_DEFAULT_TYPES") if GraphqlModelMapper.const_defined?("#{name.upcase}_GRAPHQL_DEFAULT_TYPES") 
-            #GraphqlModelMapper.logger.info "#{name.upcase}_GRAPHQL_DEFAULT_TYPES"
             graphql_type = {}
             graphql_type[:query] = query
             graphql_type[:update] = update
@@ -65,7 +62,9 @@ module GraphqlModelMapper
             allowed_associations = (associations.map(&:name) - excluded_attributes - db_fields_never) & allowed_attributes
             db_fields = (columns.keys.map(&:to_sym) - excluded_attributes - db_fields_never) & allowed_attributes
             associations = associations.select{|m| allowed_associations.include?(m.name)}
-                
+            enums = (Rails.version.split(".").first.to_i >= 4 && Rails.version.split(".").second.to_i >= 1) || (Rails.version.split(".").first.to_i >= 5) ? model.defined_enums.keys : [] 
+            enum_values = (Rails.version.split(".").first.to_i >= 4 && Rails.version.split(".").second.to_i >= 1) || (Rails.version.split(".").first.to_i >= 5) ? model.defined_enums : [] 
+            
             ret_type = GraphQL::InputObjectType.define do
                 #ensure type name is unique  so it does not collide with known types
                 name typename
@@ -105,7 +104,16 @@ module GraphqlModelMapper
                 end
         
                 db_fields.reject{|s| (primary_keys && s.to_sym == :id) || required_attributes.include?(s)}.sort.each do |f|
-                    argument f.to_sym, -> {GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, (source_nulls ? columns[f.to_s].null : true))}
+                    custom_type_name = "#{name.classify}#{f.to_s.classify}Attribute#{:input_type.to_s.classify}"
+                    if GraphqlModelMapper::CustomType.const_defined?(custom_type_name)
+                        argument f.to_sym, GraphqlModelMapper::CustomType.const_get(custom_type_name)
+                    else
+                        if enums.include?(f.to_s)
+                            argument f.to_sym, -> {GraphqlModelMapper::MapperType.get_enum_object(name, enum_values[f.to_s], f.to_s)}
+                        else
+                            argument f.to_sym, -> {GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, (source_nulls ? columns[f.to_s].null : true))}
+                        end
+                    end
                 end
             end if type_sub_key == :input_type
         
@@ -158,8 +166,16 @@ module GraphqlModelMapper
                     end
                 end                        
                 db_fields.reject{|s| (primary_keys && s.to_sym == :id) || required_attributes.include?(s)}.sort.each do |f|
-                    #puts "source null #{f} #{source_nulls ? columns[f.to_s].null : true}"
-                    field f.to_sym, -> {GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, (source_nulls ? columns[f.to_s].null : true))}
+                    custom_type_name = "#{name.classify}#{f.to_s.classify}Attribute#{:output_type.to_s.classify}"
+                    if GraphqlModelMapper::CustomType.const_defined?(custom_type_name)
+                        field f.to_sym, GraphqlModelMapper::CustomType.const_get(custom_type_name)
+                    else
+                        if enums.include?(f.to_s)
+                            field f.to_sym, -> {GraphqlModelMapper::MapperType.get_enum_object(name, enum_values[f.to_s], f.to_s)}
+                        else
+                            field f.to_sym, -> {GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, (source_nulls ? columns[f.to_s].null : true))}
+                        end
+                    end
                 end
             end if type_sub_key == :output_type
             GraphqlModelMapper.set_constant(typename, ret_type) if !GraphqlModelMapper.defined_constant?(typename)
@@ -314,6 +330,20 @@ module GraphqlModelMapper
             model.reflect_on_all_associations.select{|p| validation_attributes.include?(p.name) }.map(&:foreign_key).map(&:to_sym)  | validation_attributes & model.columns_hash.keys.map(&:to_sym)
         end
 
+        def self.get_enum_object(model_name, enum, enum_name)
+            enum_values = enum.keys
+            type_name = "#{model_name.classify}#{enum_name.classify}EnumType"
+            return GraphqlModelMapper.get_constant(type_name) if GraphqlModelMapper.defined_constant?(type_name)
+            ret_type = GraphQL::EnumType.define do
+                name type_name
+                description "generated GraphQL enum for ActiveRecord enum #{enum_name} on model #{model_name}"
+                enum_values.each do |v|
+                    value(v.classify, "", value: v)
+                end
+            end
+            GraphqlModelMapper.set_constant(type_name, ret_type)
+            GraphqlModelMapper.get_constant(type_name)
+        end
         # convert a database type to a GraphQL type
         # @param db_type [Symbol] the type returned by columns_hash[column_name].type
         # @param db_sql_type [String] the sql_type returned by columns_hash[column_name].sql_type

@@ -533,6 +533,79 @@ you can then reference your previously assigned schema in  app/controllers/graph
             end
         end
     end
+## Custom attribute types
+The functionality included in the type generation uses the base type reported by ActiveRecord for the defintion of the Input/Output model field/argument types. In some case this is not sufficient. In the case that you are using ActiveRecord Enums (Rails >= 4.1) or you have stuffed formatted data into a field that you would like to display in a custom way there is an option for you to define a custom type for input/output of  that specialized data.
+
+In order to support this functionality you will need to create an initializer for creation of your custom types. The naming convention will allow the GraphqlModelMapper to pickup your custom types for use in the generated schema in place of the default ActiveRecord db type.
+
+Use the form "#{model_name.classified}#{db_column_name.classified}Attribute#{Input/Output}Type" to name your custom type in the following manner.
+
+If your model name is "Job" and the attribute that you want to override the type is named "status", you will want to create a GraphQL object constant like the following:
+
+    GraphqlModelMapper::CustomType::JobStatusAttributeInputType
+    GraphqlModelMapper::CustomType::JobStatusAttributeOutputType
+
+in the following example I will show you how to create an override type for a Rails >=4.1 Enum value
+
+given the following definition in a model named 'Job' with an enum type mapped to the 'status' attribute
+
+    class Job < ApplicationRecord
+        enum status: { applied:0, enrolled: 100, accepted: 200, rejected: 300, cancelled: 400}
+    end
+
+to enable application of a custom type to handle the input/output of the AR enum value you would need to create custom types in an initilizer. In this case we will create config/initializers/graphql_model_mapper_init.rb to create those types.
+
+If you do not need to intercept the values when the custom type is used in input/output you can simply assign a GraphQL enum to the custom type. (take note of the naming convention used in the last statement, since the custom type will be picked up by convention when the model types are built it is important that you follow the naming convention **exactly** to ensure your custom type is used, custom types should be defined and reside in the GraphqlModelMapper::CustomType namespace). Since we do not need to intercept the field/argument resolver/prepare for this type, both input and output can be directly assigned to the GraphQL enum type. **(this case is already handled by default in Rails >=4.1 so you will not need to establish a custom type for this built in support for Rails enums)**
+
+**config/initializers/graphql_model_mapper_init.rb**
+
+    #config/initializers/graphql_model_mapper_init.rb
+
+    GraphqlModelMapper::CustomType::JobStatusAttributeEnumType = GraphQL::EnumType.define do
+      name "JobStatusAttributeEnumType"
+      value("Applied", "", value: 'applied')
+      value("Enrolled", "", value: 'enrolled')
+      value("Accepted", "", value: 'accepted')
+      value("Rejectd", "", value: 'rejected')
+      value("Cancelled", "", value: 'cancelled')
+    end
+
+    GraphqlModelMapper::CustomTypes::JobStatusAttributeOutputType = GraphqlModelMapper::CustomTypes::JobStatusAttributeInputType = GraphqlModelMapper::CustomTypes::JobStatusAttributeEnumType
+
+In the event that you need to customize the way in which your custom types are used at runtime you will need to fully declare the field and argument that will be used with your custom type. In this example I am declaring the InputType and OutputType fully so that I can use additional functionality in the prepare/resolve methods.
+
+**config/initializers/graphql_model_mapper_init.rb**
+
+    #config/initializers/graphql_model_mapper_init.rb
+    GraphqlModelMapper::CustomType::JobStatusAttributeEnumType = GraphQL::EnumType.define do
+      name "JobStatusAttributeEnumType"
+      value("Applied", "", value: 'applied')
+      value("Enrolled", "", value: 'enrolled')
+      value("Accepted", "", value: 'accepted')
+      value("Rejectd", "", value: 'rejected')
+      value("Cancelled", "", value: 'cancelled')
+    end
+
+    GraphqlModelMapper::CustomType::JobStatusAttributeOutputType = GraphQL::Field.define do
+      name "JobStatusAttributeOutputType"
+      type(GraphqlModelMapper::CustomType::JobStatusAttributeEnumType)
+      description("testing")
+      resolve ->(object, arguments, context) { 
+        object.status 
+      }
+    end
+
+    GraphqlModelMapper::CustomType::JobStatusAttributeInputType = GraphQL::Argument.define do
+      name "JobStatusAttributeInputType"
+      type (GraphqlModelMapper::CustomType::JobStatusAttributeEnumType)
+      prepare ->(value, ctx) do
+        value
+      end
+    end
+
+once you have these types defined and have restarted your server you should be able to see the mapping to the custom type in your __schema__ view and be able to use the GraphQL enums for query and update.
+
+**Note: when querying the model, you will still use the underlying value for the type if using it in a where clause since the query is sent directly to the db and has no knowlege of the Rails enum or GraphQL custom type.**
 
 ## Development
 
