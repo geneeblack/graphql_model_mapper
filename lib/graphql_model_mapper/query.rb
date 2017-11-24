@@ -7,26 +7,39 @@ module GraphqlModelMapper
             scope_methods: []
           )
           
-            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :query, type_sub_key: :input_type)
-            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :query, type_sub_key: :output_type)
+            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
+            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type)
             self.get_query(name, description, "Query", resolver, arguments, scope_methods, input_type, output_type)
         end
 
         def self.get_default_select_arguments(model, scope_methods)
             default_arguments = [
-              {:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil}, 
-              {:name=>:id,    :type=>GraphQL::INT_TYPE, :default=>nil}, 
-              {:name=>:ids,    :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil}, 
-              {:name=>:limit, :type=>GraphQL::INT_TYPE, :default=>50},
-              {:name=>:offset, :type=>GraphQL::INT_TYPE, :default=>nil},
-              {:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil}, 
-              {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil}
+              {:name=>:id,    :type=>GraphQL::ID_TYPE, :default=>nil}, 
+              {:name=>:ids,    :type=>GraphQL::ID_TYPE.to_list_type, :default=>nil},
             ]
-        
+
+            default_arguments = default_arguments + [
+              {:name=>:item_id,    :type=>GraphQL::INT_TYPE, :default=>nil}, 
+              {:name=>:item_ids,    :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil}
+            ] if GraphqlModelMapper::MapperType.get_type_params(model.name, type_sub_key: :input_type)[:primary_keys]
+
+
+            default_arguments = default_arguments + [
+              {:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil, :authorization=>:manage}, 
+              {:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil, :authorization=>:manage}, 
+              {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil, :authorization=>:manage }
+            ]
+=begin            
+            default_arguments = default_arguments + [
+#              {:name=>:limit, :type=>GraphQL::INT_TYPE, :default=>GraphqlModelMapper.max_page_size}, 
+              {:name=>:first, :type=>GraphQL::INT_TYPE, :default=>nil}, 
+              {:name=>:last, :type=>GraphQL::INT_TYPE, :default=>nil}, 
+              {:name=>:offset, :type=>GraphQL::INT_TYPE, :default=>nil}] if ![:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
+=end        
             scope_methods = scope_methods.map(&:to_sym)                        
             #.select{|m| model.method(m.to_sym).arity == 0}
             if (model.public_methods - model.instance_methods - Object.methods - ActiveRecord::Base.methods).include?(:with_deleted)
-              default_arguments << {:name=>:with_deleted, :type=>GraphQL::BOOLEAN_TYPE, :default=>false}
+              default_arguments << {:name=>:with_deleted, :type=>GraphQL::BOOLEAN_TYPE, :default=>false, :authorization=>:manage}
             end
             allowed_scope_methods = []
             if scope_methods.count > 0
@@ -46,7 +59,7 @@ module GraphqlModelMapper
                   end
                   GraphqlModelMapper.set_constant typename, enum_type
                 end
-                default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil}
+                default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil, :authorization=>:manage}
               end
             end
             default_arguments
@@ -59,8 +72,12 @@ module GraphqlModelMapper
             
             model = name.classify.constantize
         
-            default_arguments = self.get_default_select_arguments(model, scope_methods)
+            default_arguments = arguments ? (arguments.length > 0 ? arguments : self.get_default_select_arguments(model, scope_methods)) : []
+
+
+=begin
             select_input_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(name))}QueryInput"     
+
             if GraphqlModelMapper.defined_constant?(select_input_type_name)
               select_input_type = GraphqlModelMapper.get_constant(select_input_type_name)
             else
@@ -72,7 +89,43 @@ module GraphqlModelMapper
               end
               GraphqlModelMapper.set_constant(select_input_type_name, select_input_type)
             end
-        
+=end
+=begin
+            page_info_type_name = "FlatPageInfo"     
+
+            if GraphqlModelMapper.defined_constant?(page_info_type_name)
+              page_info_type = GraphqlModelMapper.get_constant(page_info_type_name)
+            else
+              page_info_type = GraphQL::ObjectType.define do
+                name("FlatPageInfo")
+                description("Information about pagination in a query.")
+                field :hasNextPage, !types.Boolean, "When paginating forwards, are there more items?", property: :has_next_page
+                field :hasPreviousPage, !types.Boolean, "When paginating backwards, are there more items?", property: :has_previous_page
+                field :startCursor, types.String, "When paginating backwards, the cursor to continue.", property: :start_cursor
+                field :endCursor, types.String, "When paginating forwards, the cursor to continue.", property: :end_cursor
+              end
+              GraphqlModelMapper.set_constant(page_info_type_name, page_info_type)
+            end
+=end           
+
+            if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
+                connection_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(name))}ConnectionType"
+                if GraphqlModelMapper.defined_constant?(connection_type_name)
+                    connection_type = GraphqlModelMapper.get_constant(connection_type_name)
+                else
+                    connection_type = output_type.define_connection do
+                        name connection_type_name
+                        field :total, hash_key: :total do
+                            type types.Int
+                            resolve ->(obj, args, ctx) {
+                                obj.nodes.count 
+                            }
+                        end
+                    end
+                    GraphqlModelMapper.set_constant(connection_type_name, connection_type)
+                end
+            end
+
             total_output_type_name = "#{GraphqlModelMapper.get_type_name(name)}QueryPayload"
             if GraphqlModelMapper.defined_constant?(total_output_type_name)
               total_output_type = GraphqlModelMapper.get_constant(total_output_type_name)
@@ -80,11 +133,46 @@ module GraphqlModelMapper
               total_output_type = GraphQL::ObjectType.define do
                 name total_output_type_name
                 if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
-                  connection :items, -> {output_type.connection_type}, hash_key: :items
+                  connection :items, -> {connection_type}, max_page_size: GraphqlModelMapper.max_page_size do 
+                        resolve -> (obj, args, ctx) {
+                            limit = GraphqlModelMapper.max_page_size
+                            raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if args[:first].to_i > limit || args[:last].to_i > limit
+
+                            obj
+                        }
+                    end
                 else
-                  field :items, -> {output_type.to_list_type}, hash_key: :items
+                  field :items, -> {output_type.to_list_type}, hash_key: :items do
+                    argument :per_page, GraphQL::INT_TYPE
+                    argument :page, GraphQL::INT_TYPE
+                    resolve->(obj, args, ctx){
+                      first_rec = nil
+                      last_rec = nil
+                      limit = GraphqlModelMapper.max_page_size.to_i
+                      
+                      if args[:per_page]
+                        per_page = args[:per_page].to_i
+                        raise GraphQL::ExecutionError.new("per_page must be greater than 0") if per_page < 1
+                        raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if per_page > limit
+                        limit = [per_page,limit].min
+                      end
+                      if args[:page]
+                        page = args[:page].to_i
+                        raise GraphQL::ExecutionError.new("page must be greater than 0") if page < 1
+                        max_page = (obj.count/per_page).floor + 1
+                        raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the max number of pages #{max_page}") if page > max_page
+                        obj = obj.offset((page-1)*limit)
+                      end
+                      obj = obj.limit(limit)
+                      obj
+                    }
+                  end
+                  field :total, -> {GraphQL::INT_TYPE}, hash_key: :total do 
+                    resolve->(obj,args, ctx){
+                        obj.limit(nil).count
+                    }
+                  end
                 end
-                field :total, -> {GraphQL::INT_TYPE}, hash_key: :total
               end
               GraphqlModelMapper.set_constant(total_output_type_name, total_output_type)
             end
@@ -93,15 +181,31 @@ module GraphqlModelMapper
             ret_type = GraphQL::Field.define do
                 name query_type_name
                 type total_output_type
-                #argument :select, -> {!select_input_type}
                 default_arguments.each do |k|
-                  argument k[:name].to_sym, k[:type], k[:description], default_value: k[:default] 
+                  argument k[:name].to_sym, k[:type], k[:description], default_value: k[:default] do                  
+                    if k[:authorization] && GraphqlModelMapper.use_authorize
+                      authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                      model_name name
+                      access_type k[:authorization] 
+                    end       
+                  end
                 end
-        
-                resolve resolver 
-              end
+                resolve GraphqlModelMapper::Query.get_resolver(resolver, model)
+            end
             GraphqlModelMapper.set_constant(query_type_name, ret_type)
             GraphqlModelMapper.get_constant(query_type_name)
+        end
+
+
+        def self.get_resolver(resolver, model)
+          
+          resolver = -> (obj,args,ctx){ model.graphql_query_resolver(obj, args, ctx) } if model.public_methods.include?(:graphql_query_resolver)
+
+          if GraphqlModelMapper.query_resolve_wrapper && GraphqlModelMapper.query_resolve_wrapper < GraphqlModelMapper::Resolve::ResolveWrapper
+            return GraphqlModelMapper.query_resolve_wrapper.new(resolver)
+          else
+            return GraphqlModelMapper::Resolve::ResolveWrapper.new(resolver)
+          end
         end
     end
 end    

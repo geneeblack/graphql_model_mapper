@@ -4,8 +4,8 @@ module GraphqlModelMapper
             resolver: nil)
       
       
-            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :update, type_sub_key: :input_type)
-            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :update, type_sub_key: :output_type)
+            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
+            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type)
       
             self.get_mutation(name, description, "Update", resolver, input_type, output_type, name.downcase, "item")
           end
@@ -15,21 +15,22 @@ module GraphqlModelMapper
             arguments: [],
             scope_methods: [])
             
-            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :delete, type_sub_key: :input_type)
-            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :delete, type_sub_key: :output_type).to_list_type
+            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
+            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type).to_list_type
             self.get_delete_mutation(name, description, "Delete", resolver, arguments, scope_methods, input_type, output_type)
           end
           
           def self.graphql_create(name: "", description:"",
             resolver: nil)
             
-            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :create, type_sub_key: :input_type)
-            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_key: :create, type_sub_key: :output_type)
+            input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
+            output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type)
       
             self.get_mutation(name, description, "Create", resolver, input_type, output_type, name.downcase, "item")
           end
 
           def self.get_mutation(name, description, operation_name, resolver, input_type, output_type, input_name, output_name)
+            model = name.classify.constantize
             mutation_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}#{operation_name}")
             return GraphqlModelMapper.get_constant(mutation_type_name) if GraphqlModelMapper.defined_constant?(mutation_type_name)
             mutation_type = GraphQL::Relay::Mutation.define do
@@ -38,7 +39,7 @@ module GraphqlModelMapper
               input_field input_name.to_sym, -> {input_type}
               return_field output_name.to_sym, -> {output_type}
         
-              resolve resolver
+              resolve GraphqlModelMapper::Mutation.get_resolver(resolver, model, operation_name.downcase.to_sym)
             end
         
             GraphqlModelMapper.set_constant(mutation_type_name, mutation_type.field)
@@ -50,33 +51,50 @@ module GraphqlModelMapper
             return GraphqlModelMapper.get_constant(query_type_name) if GraphqlModelMapper.defined_constant?(query_type_name) 
             
             model = name.classify.constantize
-    
-            default_arguments = self.get_default_select_arguments(model, scope_methods)
-            select_input_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}SelectInput")     
+            default_arguments = arguments ? (arguments.length > 0 ? arguments : self.get_default_select_arguments(model, scope_methods)) : []
+
+            select_input_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}SelectInput")                                         
             if GraphqlModelMapper.defined_constant?(select_input_type_name)
-            query_input_object_type = GraphqlModelMapper.get_constant(select_input_type_name)
+              query_input_object_type = GraphqlModelMapper.get_constant(select_input_type_name)
             else
-            query_input_object_type = GraphQL::InputObjectType.define do
-                name select_input_type_name
-                default_arguments.each do |k|
-                argument k[:name].to_sym, k[:type], k[:description], default_value: k[:default] 
-                end
-            end
-            GraphqlModelMapper.set_constant(select_input_type_name, query_input_object_type)
+              query_input_object_type = GraphQL::InputObjectType.define do
+                  name select_input_type_name
+                  default_arguments.each do |k|
+                    argument k[:name].to_sym, k[:type], k[:description], default_value: k[:default] do                  
+                      if k[:authorization] && GraphqlModelMapper.use_authorize
+                        authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                        model_name name
+                        access_type k[:authorization] 
+                      end       
+                    end 
+                  end
+              end
+              GraphqlModelMapper.set_constant(select_input_type_name, query_input_object_type)
             end
         
+            total_result_type_name = GraphqlModelMapper.get_type_case("TotalResult")                                         
+            if GraphqlModelMapper.defined_constant?(total_result_type_name)
+              total_result_type = GraphqlModelMapper.get_constant(total_result_type_name)
+            else
+              total_result_type =  GraphQL::InterfaceType.define do
+                name total_result_type_name
+                field :total, -> {GraphQL::INT_TYPE} do
+                  resolve -> (obj, args, ctx) {
+                    obj.items.length
+                  }
+                end
+              end
+              GraphqlModelMapper.set_constant(total_result_type_name, total_result_type)
+            end
+
             
             ret_type = GraphQL::Relay::Mutation.define do
                 name query_type_name
-                #return_field :item, output_object_type
                 return_field :items, output_type
-                return_field :total, -> {GraphQL::INT_TYPE}
-    
-                #description description
-                #input_field "input".to_sym, -> {input_object_type}
+                return_interfaces [total_result_type]
                 input_field :select, -> {!query_input_object_type}
-        
-                resolve resolver 
+
+                resolve GraphqlModelMapper::Mutation.get_resolver(resolver, model, :delete) 
             end
             GraphqlModelMapper.set_constant(query_type_name, ret_type.field)
             GraphqlModelMapper.get_constant(query_type_name)
@@ -84,19 +102,25 @@ module GraphqlModelMapper
 
         def self.get_default_select_arguments(model, scope_methods)
             default_arguments = [
-              {:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil}, 
-              {:name=>:id,    :type=>GraphQL::INT_TYPE, :default=>nil}, 
-              {:name=>:ids,    :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil}, 
-              {:name=>:limit, :type=>GraphQL::INT_TYPE, :default=>50},
-              {:name=>:offset, :type=>GraphQL::INT_TYPE, :default=>nil},
-              {:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil}, 
-              {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil}
+              {:name=>:id,    :type=>GraphQL::ID_TYPE, :default=>nil}, 
+              {:name=>:ids,    :type=>GraphQL::ID_TYPE.to_list_type, :default=>nil},
             ]
+
+            default_arguments = default_arguments + [
+              {:name=>:item_id,    :type=>GraphQL::INT_TYPE, :default=>nil}, 
+              {:name=>:item_ids,    :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil}
+            ] if GraphqlModelMapper::MapperType.get_type_params(model.name, type_sub_key: :input_type)[:primary_keys]
         
+            default_arguments = default_arguments + [
+              {:name=>:explain,   :type=>GraphQL::BOOLEAN_TYPE, :default=>nil, :authorization=>:manage}, 
+              {:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil, :authorization=>:manage}, 
+              {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil, :authorization=>:manage }
+            ]
+
             scope_methods = scope_methods.map(&:to_sym)                        
             #.select{|m| model.method(m.to_sym).arity == 0}
             if (model.public_methods - model.instance_methods - Object.methods - ActiveRecord::Base.methods).include?(:with_deleted)
-              default_arguments << {:name=>:with_deleted, :type=>GraphQL::BOOLEAN_TYPE, :default=>false}
+              default_arguments << {:name=>:with_deleted, :type=>GraphQL::BOOLEAN_TYPE, :default=>false, :authorization=>:manage}
             end
             allowed_scope_methods = []
             if scope_methods.count > 0
@@ -116,10 +140,29 @@ module GraphqlModelMapper
                   end
                   GraphqlModelMapper.set_constant typename, enum_type
                 end
-                default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil}
+                default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil, :authorization=>:manage}
               end
             end
             default_arguments
-        end          
+        end
+        
+        def self.get_resolver(resolver, model, operation)
+          if model.public_methods.include?("graphql_#{operation}_resolver".to_sym)
+            case operation
+              when :create
+                resolver = -> (obj, args, ctx) {model.graphql_create_resolver(obj,args,ctx) } if model.public_methods.include?(:graphql_create_resolver)
+              when :delete
+                resolver = -> (obj, args, ctx) {model.graphql_delete_resolver(obj,args,ctx) } if model.public_methods.include?(:graphql_delete_resolver)
+              when :update
+                resolver = -> (obj, args, ctx) {model.graphql_update_resolver(obj,args,ctx) } if model.public_methods.include?(:graphql_update_resolver)
+            end
+          end
+          if GraphqlModelMapper.mutation_resolve_wrapper && GraphqlModelMapper.mutation_resolve_wrapper < GraphqlModelMapper::Resolve::ResolveWrapper
+            return GraphqlModelMapper.mutation_resolve_wrapper.new(resolver)
+          else
+            return GraphqlModelMapper::Resolve::ResolveWrapper.new(resolver)
+          end
+        end
+           
     end
 end    

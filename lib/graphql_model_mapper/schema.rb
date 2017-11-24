@@ -1,12 +1,32 @@
 module GraphqlModelMapper
-    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false, nesting_strategy: :shallow, type_case: :camelize)
+    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false, nesting_strategy: :deep, type_case: :camelize, max_page_size: 100, scan_for_polymorphic_associations: false, mutation_resolve_wrapper: nil, query_resolve_wrapper: nil, bidirectional_pagination: false, default_nodes_field: false)
 
       return GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase) if GraphqlModelMapper.defined_constant?("GraphqlModelMapperSchema".upcase)
       GraphqlModelMapper.use_authorize = use_authorize
       GraphqlModelMapper.nesting_strategy = nesting_strategy
       GraphqlModelMapper.type_case = type_case
+      GraphqlModelMapper.max_page_size = max_page_size
+      GraphqlModelMapper.scan_for_polymorphic_associations = scan_for_polymorphic_associations
+      GraphqlModelMapper.default_nodes_field = default_nodes_field
+      GraphqlModelMapper.bidirectional_pagination = bidirectional_pagination
 
-      if GraphqlModelMapper.use_authorize
+      if query_resolve_wrapper && query_resolve_wrapper < GraphqlModelMapper::Resolve::ResolveWrapper
+        GraphqlModelMapper.query_resolve_wrapper = query_resolve_wrapper
+      else
+        GraphqlModelMapper.query_resolve_wrapper = GraphqlModelMapper::Resolve::ResolveWrapper
+      end
+        
+      if mutation_resolve_wrapper && mutation_resolve_wrapper < GraphqlModelMapper::Resolve::ResolveWrapper
+        GraphqlModelMapper.mutation_resolve_wrapper = mutation_resolve_wrapper
+      else
+        GraphqlModelMapper.mutation_resolve_wrapper = GraphqlModelMapper::Resolve::ResolveWrapper
+      end
+
+
+      GraphQL::Relay::ConnectionType.bidirectional_pagination = GraphqlModelMapper.bidirectional_pagination
+      GraphQL::Relay::ConnectionType.default_nodes_field = GraphqlModelMapper.default_nodes_field
+      
+      #if GraphqlModelMapper.use_authorize
         metadata_definitions = {
           authorized: ->(field, authorized_proc) { field.metadata[:authorized_proc] = authorized_proc },
           model_name: GraphQL::Define.assign_metadata_key(:model_name),
@@ -14,13 +34,50 @@ module GraphqlModelMapper
         }
         GraphQL::Field.accepts_definitions(metadata_definitions)
         GraphQL::Argument.accepts_definitions(metadata_definitions)
-      end
+        GraphQL::ObjectType.accepts_definitions(metadata_definitions)
+        #end
 
       schema = GraphQL::Schema.define do
         use GraphQL::Backtrace if use_backtrace
-        default_max_page_size 100
+        default_max_page_size max_page_size.to_i
         mutation GraphqlModelMapper.MutationType
         query GraphqlModelMapper.QueryType
+        
+        resolve_type ->(type, obj, ctx) {
+          raise GraphQL::ExecutionError.new("unauthorized access: #{obj.class.name}") if !GraphqlModelMapper.authorized?(ctx, obj.class.name)
+          GraphqlModelMapper.get_constant("#{obj.class.name}Output".upcase)
+        }
+
+        # Create UUIDs by joining the type name & ID, then base64-encoding it
+        id_from_object ->(object, type_definition, context) {
+          GraphQL::Schema::UniqueWithinType.encode(type_definition.name, object.id)
+        }
+
+        object_from_id ->(id, context) {
+          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(id)
+          
+          type = GraphqlModelMapper.get_constant(type_name.upcase)
+          raise GraphQL::ExecutionError.new("unknown type for id: #{id}") if type.nil?
+          authorized_proc = type.metadata[:authorized_proc]
+          model_name = type.metadata[:model_name]
+          access_type = type.metadata[:access_type]
+          
+    
+          raise GraphQL::ExecutionError.new("unauthorized access for id: #{id}") if !authorized_proc.call(context, model_name, access_type)
+          model = model_name.to_s.classify.constantize
+=begin
+          args = {
+            item_id: item_id
+          }
+          resolver = -> (obj, args, ctx) {              
+            items = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, nil)
+          }
+          resolve = GraphqlModelMapper::Query.get_resolver(resolver)
+          resolve.call(model, args, context)
+=end          
+
+          model.unscoped.find(item_id)
+        }
       end
 
      
@@ -28,7 +85,7 @@ module GraphqlModelMapper
       schema.query_analyzers << GraphQL::Analysis::QueryComplexity.new { |query, complexity| Rails.logger.info("[******GraphqlModelMapper Query Complexity] #{complexity}")} if log_query_complexity
 
       GraphqlModelMapper.set_constant("GraphqlModelMapperSchema".upcase, schema)
-
+      GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase)
     end
 
 
@@ -36,13 +93,14 @@ module GraphqlModelMapper
       return GraphQL::ObjectType.define do
         name 'Query'
         # create queries for each AR model object
-        field :welcomeQuery, types.String, hash_key: :welcomeMutation do
-          resolve -> (obj, args, ctx){
-            {
-              welcomeQuery: "this is a placeholder mutation in case you do not have access to other queries"
-            }
-          }
+        field :node, GraphQL::Relay::Node.field do
+          description "Fetches an object given its globally unique ID"
         end
+
+        field :nodes, GraphQL::Relay::Node.plural_field do
+          description "Fetches a list of objects given a list of globally unique IDs"
+        end
+
         GraphqlModelMapper.schema_queries.each do |f|
           field f[:name], f[:field]  do
             if GraphqlModelMapper.use_authorize
@@ -58,15 +116,10 @@ module GraphqlModelMapper
     def self.MutationType
       return GraphQL::ObjectType.define do
         name 'Mutation'
-      
-        field :welcomeMutation, types.String, hash_key: :welcomeMutation do
-          resolve -> (obj, args, ctx){
-            {
-              welcomeMutation: "this is a placeholder mutation in case you do not have access to other mutations"
-            }
-          }
-        end
-    
+
+        field :login, GraphqlModelMapper::LOGIN.field
+        field :logout, GraphqlModelMapper::LOGOUT.field
+        
         GraphqlModelMapper.schema_mutations.each do |f|
           field f[:name], f[:field]  do
             if GraphqlModelMapper.use_authorize
@@ -78,6 +131,31 @@ module GraphqlModelMapper
         end   
       end
     end
+  end
+
+  GraphqlModelMapper::LOGIN = GraphQL::Relay::Mutation.define do
+    name 'Login'
+    description ''
+    input_field :username, !GraphQL::STRING_TYPE
+    input_field :password, !GraphQL::STRING_TYPE
+    return_field :success, GraphQL::BOOLEAN_TYPE
+
+    resolve -> (obj, args, ctx){
+        {
+          success: true
+        }
+      }
+  end
+
+  GraphqlModelMapper::LOGOUT = GraphQL::Relay::Mutation.define do
+    name 'Logout'
+    description ''
+    return_field :success, GraphQL::BOOLEAN_TYPE    
+    resolve -> (obj, args, ctx){
+      {
+        success: true
+      }
+    }
   end
 
   GraphqlModelMapper::GEOMETRY_OBJECT_TYPE = GraphQL::ScalarType.define do

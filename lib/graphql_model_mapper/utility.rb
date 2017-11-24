@@ -49,7 +49,22 @@ module GraphqlModelMapper
     output.sort
   end
 
-  def self.authorized?(ctx, model_name, access, roles=nil)
+  def self.log_resolve(ctx, args, generate_error: false)
+    ret_info = {}
+    ret_info[:return_type] = ctx.type.to_s
+    ret_info[:return_fields] = []
+    ctx.type.fields.keys.each do |f|
+      ret_info[:return_fields] << {field: f, field_type: ctx.type.fields[f].type.to_s}
+    end
+    ret_wrap = {}
+    ret_wrap[:input] = args.to_h
+    ret_wrap[:output] = ret_info
+    GraphqlModelMapper.logger.info "***GraphqlModelMapper_resolver_info: #{{resolver_data: ret_wrap}}"
+    GraphQL::ExecutionError.new("resolver info", options: {resolver_data: ret_wrap}) if generate_error
+  end
+
+  def self.authorized?(ctx, model_name, access=:read, roles=nil)
+      
     model = model_name.classify.constantize
     access = access.to_sym
     #here it is checking to see if public methods are exposed on items based on the operation being performed
@@ -78,8 +93,11 @@ module GraphqlModelMapper
         end
       end
     end
+    if !GraphqlModelMapper.use_authorize
+      return true
+    end
     #implementation specific, here it is using an ability method on the user class plugged into cancan
-    if ctx[:current_user].public_methods.include?(:ability)
+    if ctx && ctx[:current_user].public_methods.include?(:ability)
       if !ctx[:current_user].ability.can? access, model
         return false
       end

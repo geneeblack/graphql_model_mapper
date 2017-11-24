@@ -10,14 +10,30 @@ require "graphql_model_mapper/version"
 require 'graphql_model_mapper/railtie' if defined?(Rails)
 
 module GraphqlModelMapper
+  mattr_accessor :query_resolve_wrapper
+  mattr_accessor :mutation_resolve_wrapper
+  mattr_accessor :resolve_wrapper
   mattr_accessor :type_case
   mattr_accessor :nesting_strategy
   mattr_accessor :use_authorize
+  mattr_accessor :max_page_size
+  mattr_accessor :scan_for_polymorphic_associations
+  mattr_accessor :default_nodes_field
+  mattr_accessor :bidirectional_pagination
+  
 
   @@type_case = :camelize
   @@nesting_strategy = :shallow
   @@use_authorize = false
+  @@max_page_size = 100
+  @@scan_for_polymorphic_associations = false
+  @@query_resolve_wrapper = nil
+  @@mutation_resolve_wrapper = nil
+  @@default_nodes_field = false
+  @@bidirectional_pagination = false
   
+
+
   class << self
     attr_writer :logger
 
@@ -37,15 +53,15 @@ module GraphqlModelMapper
 
     protected
     
-    def graphql_types(query: {}, update: {}, delete: {}, create: {})
+    def graphql_types(input_type:{}, output_type:{})
       name = self.name
       define_singleton_method(:graphql_types) do
-        GraphqlModelMapper::MapperType.graphql_types(name: name, query: query, update: update, delete: delete, create: create)
+        GraphqlModelMapper::MapperType.graphql_types(name: name, input_type: input_type, output_type: output_type)
       end
     end
 
     def graphql_update(description:"", resolver: -> (obj, inputs, ctx){
-      item = GraphqlModelMapper::Resolve.update_resolver(obj, inputs, ctx, name)
+        item = GraphqlModelMapper::Resolve.update_resolver(obj, inputs, ctx, name)
         {
           item: item
         }
@@ -59,7 +75,6 @@ module GraphqlModelMapper
     def graphql_delete(description:"", resolver: -> (obj, inputs, ctx){
         items = GraphqlModelMapper::Resolve.delete_resolver(obj, inputs, ctx, name)
         {
-          total: items.length,
           items: items
         }
       }, arguments: [], scope_methods: [])
@@ -70,7 +85,7 @@ module GraphqlModelMapper
     end
     
     def graphql_create(description:"", resolver:  -> (obj, args, ctx){
-      item = GraphqlModelMapper::Resolve.create_resolver(obj, args, ctx, name)
+        item = GraphqlModelMapper::Resolve.create_resolver(obj, args, ctx, name)
         {
           item: item
         }
@@ -83,14 +98,10 @@ module GraphqlModelMapper
 
     def graphql_query(description: "", resolver: -> (obj, args, ctx) {              
         items = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, name)
-        {
-          items: items,
-          total: items.length
-        }
       }, arguments: [], scope_methods: [])                      
       name = self.name
       define_singleton_method(:graphql_query) do
-        GraphqlModelMapper::Query.graphql_query(name: name, description: description, resolver: resolver, scope_methods: scope_methods)
+        GraphqlModelMapper::Query.graphql_query(name: name, description: description, resolver: resolver, scope_methods: scope_methods, arguments: arguments)
       end
     end
   end
