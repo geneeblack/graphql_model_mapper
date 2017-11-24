@@ -175,7 +175,7 @@ module GraphqlModelMapper
                             # if a union type is defined in custom types use it, otherwise generate a union type from the association definition (requires a table scan)
                             custom_type_name = "#{name.classify}#{reflection.name.to_s.classify}Union"
                             if GraphqlModelMapper::CustomType.const_defined?(custom_type_name)
-                                field reflection.name.to_sym, -> {GraphqlModelMapper::CustomType.const_get(custom_type_name)}, property: reflection.name.to_sym 
+                                field reflection.name.to_sym, -> {GraphqlModelMapper::CustomType.const_get(custom_type_name)} 
                             elsif GraphqlModelMapper.scan_for_polymorphic_associations   
                                 field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name)}, property: reflection.name.to_sym    
                             end 
@@ -209,7 +209,7 @@ module GraphqlModelMapper
                 db_fields.reject{|s| (s.to_sym == :id) || required_attributes.include?(s)}.sort.each do |f|
                     custom_type_name = "#{name.classify}#{f.to_s.classify}AttributeOutput"
                     if GraphqlModelMapper::CustomType.const_defined?(custom_type_name)
-                        field f.to_sym, GraphqlModelMapper::CustomType.const_get(custom_type_name), property: f.to_sym
+                        field f.to_sym, GraphqlModelMapper::CustomType.const_get(custom_type_name)
                     else
                         if enums.include?(f.to_s)
                             field f.to_sym, -> {GraphqlModelMapper::MapperType.get_enum_object(name, enum_values[f.to_s], f.to_s)}, property: f.to_sym
