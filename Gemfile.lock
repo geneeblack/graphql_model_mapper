@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    graphql_model_mapper (0.0.6)
+    graphql_model_mapper (0.1.0)
       activemodel (>= 3.2.22.5)
       activerecord (>= 3.2.22.5)
       activesupport (>= 3.2.22.5)
