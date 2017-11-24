@@ -235,7 +235,7 @@ module GraphqlModelMapper
             parent_classes = has_with_deleted ? model.with_deleted.select("distinct #{parent_name}").map{|m| m.send("#{parent_name}".to_sym)} :  model.select("distinct #{parent_name}").map{|m| m.send("#{parent_name}".to_sym)}
             types = []
             parent_classes.each do |p|
-                types << self.get_ar_object_with_params(p, type_sub_key: type_sub_key)
+                types << self.get_ar_object_with_params(p, type_sub_key: :output_type)
             end
 
             ret_type = GraphQL::UnionType.define do
