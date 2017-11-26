@@ -83,7 +83,23 @@ module GraphqlModelMapper
      
       schema.query_analyzers << GraphQL::Analysis::QueryDepth.new { |query, depth| Rails.logger.info("[******GraphqlModelMapper Query Depth] #{depth}") } if log_query_depth
       schema.query_analyzers << GraphQL::Analysis::QueryComplexity.new { |query, complexity| Rails.logger.info("[******GraphqlModelMapper Query Complexity] #{complexity}")} if log_query_complexity
+      GraphQL::Errors.configure(schema) do
+        rescue_from ActiveRecord::RecordNotFound do |exception|
+          nil
+        end
+      
+        rescue_from ActiveRecord::RecordInvalid do |exception|
+          GraphQL::ExecutionError.new(exception.record.errors.full_messages.join("\n"))
+        end
+      
+        rescue_from StandardError do |exception|
+          GraphQL::ExecutionError.new("Please try to execute the query for this field later")
+        end
 
+        rescue_from do |exception|
+          GraphQL::ExecutionError.new(exception.message)
+        end
+      end
       GraphqlModelMapper.set_constant("GraphqlModelMapperSchema".upcase, schema)
       GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase)
     end

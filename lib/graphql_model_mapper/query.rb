@@ -109,21 +109,7 @@ module GraphqlModelMapper
 =end           
 
             if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
-                connection_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(name))}ConnectionType"
-                if GraphqlModelMapper.defined_constant?(connection_type_name)
-                    connection_type = GraphqlModelMapper.get_constant(connection_type_name)
-                else
-                    connection_type = output_type.define_connection do
-                        name connection_type_name
-                        field :total, hash_key: :total do
-                            type types.Int
-                            resolve ->(obj, args, ctx) {
-                                obj.nodes.count 
-                            }
-                        end
-                    end
-                    GraphqlModelMapper.set_constant(connection_type_name, connection_type)
-                end
+                connection_type = GraphqlModelMapper::MapperType.get_connection_type(name, output_type)
             end
 
             total_output_type_name = "#{GraphqlModelMapper.get_type_name(name)}QueryPayload"

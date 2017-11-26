@@ -154,7 +154,7 @@ module GraphqlModelMapper
                     end                    
                     if reflection.macro == :has_many
                         if [:deep].include?(GraphqlModelMapper.nesting_strategy)
-                            connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key).connection_type}, property: reflection.name.to_sym, max_page_size: GraphqlModelMapper.max_page_size do
+                            connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_connection_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym, max_page_size: GraphqlModelMapper.max_page_size do
                                 if GraphqlModelMapper.use_authorize
                                     authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
                                     model_name klass.name
@@ -270,6 +270,35 @@ module GraphqlModelMapper
             params 
         end
     
+
+        def self.get_connection_type(model_name, output_type)
+            connection_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(model_name))}Connection"
+            if GraphqlModelMapper.defined_constant?(connection_type_name)
+                connection_type = GraphqlModelMapper.get_constant(connection_type_name)
+            else
+                connection_type = output_type.define_connection do
+                    name connection_type_name
+                    field :total, hash_key: :total do
+                        type types.Int
+                        resolve ->(obj, args, ctx) {
+                            #obj.nodes.limit(nil).count
+                            obj.nodes.length  
+                        }
+                    end
+=begin
+                    field :count, hash_key: :count do
+                        type types.Int
+                        resolve ->(obj, args, ctx) {
+                            obj.nodes.length 
+                        }
+                    end
+=end
+                end
+                GraphqlModelMapper.set_constant(connection_type_name, connection_type)
+            end
+            return GraphqlModelMapper.get_constant(connection_type_name)
+        end
+
         def self.graphql_default_types(
                 input_type: {
                     required_attributes: [], 

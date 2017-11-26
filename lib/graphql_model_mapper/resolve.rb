@@ -82,7 +82,7 @@ module GraphqlModelMapper
           raise GraphQL::ExecutionError.new(obj_context.explain.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : ""))
         end
         #if select_args[:limit].nil?
-        #    obj_context = obj_context.limit(100)
+        #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
         #end
         obj_context = obj_context.where("1=1")
         obj_context
