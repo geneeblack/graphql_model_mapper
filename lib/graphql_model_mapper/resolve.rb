@@ -66,6 +66,8 @@ module GraphqlModelMapper
         end
         if select_args[:where]
           obj_context = obj_context.where(select_args[:where])
+        else
+          obj_context = obj_context.where("1=1")
         end
         if with_deleted_allowed
           obj_context = obj_context.with_deleted
@@ -79,12 +81,11 @@ module GraphqlModelMapper
         if select_args[:explain]
           obj_context = obj_context.limit(1)
           obj_context = obj_context.eager_load(implied_includes)
-          raise GraphQL::ExecutionError.new(obj_context.explain.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : ""))
+          raise GraphQL::ExecutionError.new(obj_context.explain.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : "").sub(" AND (1=1)","").sub(" WHERE (1=1)",""))
         end
         #if select_args[:limit].nil?
         #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
         #end
-        obj_context = obj_context.where("1=1")
         obj_context
     end
 
@@ -141,6 +142,10 @@ module GraphqlModelMapper
       selection.name == 'nodes'
     end
 
+    def self.using_items_pagination?(selection)
+      selection.name == 'items'
+    end
+
     def self.has_reflection_with_name?(class_name, selection_name)
       class_name.reflect_on_all_associations.select{|m|m.name == selection_name.to_sym}.present?
     end
@@ -165,6 +170,11 @@ module GraphqlModelMapper
         end
 
         if using_nodes_pagination?(selection)
+          get_implied_includes(class_name, selection, dependencies)
+          next
+        end
+
+        if using_items_pagination?(selection)
           get_implied_includes(class_name, selection, dependencies)
           next
         end

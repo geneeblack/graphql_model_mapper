@@ -92,7 +92,6 @@ module GraphqlModelMapper
 =end
 =begin
             page_info_type_name = "FlatPageInfo"     
-
             if GraphqlModelMapper.defined_constant?(page_info_type_name)
               page_info_type = GraphqlModelMapper.get_constant(page_info_type_name)
             else
@@ -108,60 +107,31 @@ module GraphqlModelMapper
             end
 =end           
 
-            if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
-                connection_type = GraphqlModelMapper::MapperType.get_connection_type(name, output_type)
-            end
 
-            total_output_type_name = "#{GraphqlModelMapper.get_type_name(name)}QueryPayload"
-            if GraphqlModelMapper.defined_constant?(total_output_type_name)
-              total_output_type = GraphqlModelMapper.get_constant(total_output_type_name)
-            else
+
+          total_output_type_name = "#{GraphqlModelMapper.get_type_name(name)}QueryPayload"
+          if GraphqlModelMapper.defined_constant?(total_output_type_name)
+            total_output_type = GraphqlModelMapper.get_constant(total_output_type_name)
+          else
+            if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
+              connection_type = GraphqlModelMapper::MapperType.get_connection_type(name, output_type)
               total_output_type = GraphQL::ObjectType.define do
                 name total_output_type_name
-                if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
-                  connection :items, -> {connection_type}, max_page_size: GraphqlModelMapper.max_page_size do 
-                        resolve -> (obj, args, ctx) {
-                            limit = GraphqlModelMapper.max_page_size
-                            raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if args[:first].to_i > limit || args[:last].to_i > limit
+                connection :items, -> {connection_type}, max_page_size: GraphqlModelMapper.max_page_size do 
+                      resolve -> (obj, args, ctx) {
+                          limit = GraphqlModelMapper.max_page_size
+                          raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if args[:first].to_i > limit || args[:last].to_i > limit
 
-                            obj
-                        }
-                    end
-                else
-                  field :items, -> {output_type.to_list_type}, hash_key: :items do
-                    argument :per_page, GraphQL::INT_TYPE
-                    argument :page, GraphQL::INT_TYPE
-                    resolve->(obj, args, ctx){
-                      first_rec = nil
-                      last_rec = nil
-                      limit = GraphqlModelMapper.max_page_size.to_i
-                      
-                      if args[:per_page]
-                        per_page = args[:per_page].to_i
-                        raise GraphQL::ExecutionError.new("per_page must be greater than 0") if per_page < 1
-                        raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if per_page > limit
-                        limit = [per_page,limit].min
-                      end
-                      if args[:page]
-                        page = args[:page].to_i
-                        raise GraphQL::ExecutionError.new("page must be greater than 0") if page < 1
-                        max_page = (obj.count/per_page).floor + 1
-                        raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the max number of pages #{max_page}") if page > max_page
-                        obj = obj.offset((page-1)*limit)
-                      end
-                      obj = obj.limit(limit)
-                      obj
-                    }
+                          obj
+                      }
                   end
-                  field :total, -> {GraphQL::INT_TYPE}, hash_key: :total do 
-                    resolve->(obj,args, ctx){
-                        obj.limit(nil).count
-                    }
-                  end
-                end
               end
-              GraphqlModelMapper.set_constant(total_output_type_name, total_output_type)
+            else
+                total_output_type = GraphqlModelMapper::MapperType.get_list_type(name, output_type)
             end
+            GraphqlModelMapper.set_constant(total_output_type_name, total_output_type)              
+          end
+
         
               
             ret_type = GraphQL::Field.define do

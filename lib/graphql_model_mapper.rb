@@ -20,6 +20,7 @@ module GraphqlModelMapper
   mattr_accessor :scan_for_polymorphic_associations
   mattr_accessor :default_nodes_field
   mattr_accessor :bidirectional_pagination
+  mattr_accessor :handle_errors
   
 
   @@type_case = :camelize
@@ -31,6 +32,7 @@ module GraphqlModelMapper
   @@mutation_resolve_wrapper = nil
   @@default_nodes_field = false
   @@bidirectional_pagination = false
+  @@handle_errors = false
   
 
 

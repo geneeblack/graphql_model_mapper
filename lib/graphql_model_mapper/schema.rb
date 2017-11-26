@@ -1,5 +1,5 @@
 module GraphqlModelMapper
-    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false, nesting_strategy: :deep, type_case: :camelize, max_page_size: 100, scan_for_polymorphic_associations: false, mutation_resolve_wrapper: nil, query_resolve_wrapper: nil, bidirectional_pagination: false, default_nodes_field: false)
+    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false, nesting_strategy: :deep, type_case: :camelize, max_page_size: 100, scan_for_polymorphic_associations: false, mutation_resolve_wrapper: nil, query_resolve_wrapper: nil, bidirectional_pagination: false, default_nodes_field: false, handle_errors: false)
 
       return GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase) if GraphqlModelMapper.defined_constant?("GraphqlModelMapperSchema".upcase)
       GraphqlModelMapper.use_authorize = use_authorize
@@ -9,7 +9,8 @@ module GraphqlModelMapper
       GraphqlModelMapper.scan_for_polymorphic_associations = scan_for_polymorphic_associations
       GraphqlModelMapper.default_nodes_field = default_nodes_field
       GraphqlModelMapper.bidirectional_pagination = bidirectional_pagination
-
+      GraphqlModelMapper.handle_errors = handle_errors
+      
       if query_resolve_wrapper && query_resolve_wrapper < GraphqlModelMapper::Resolve::ResolveWrapper
         GraphqlModelMapper.query_resolve_wrapper = query_resolve_wrapper
       else
@@ -88,18 +89,22 @@ module GraphqlModelMapper
           nil
         end
       
+        rescue_from ActiveRecord::StatementInvalid do |exception|
+          GraphQL::ExecutionError.new(exception.message)
+        end
+
         rescue_from ActiveRecord::RecordInvalid do |exception|
           GraphQL::ExecutionError.new(exception.record.errors.full_messages.join("\n"))
         end
       
         rescue_from StandardError do |exception|
-          GraphQL::ExecutionError.new("Please try to execute the query for this field later")
+          GraphQL::ExecutionError.new(exception.message)
         end
 
         rescue_from do |exception|
           GraphQL::ExecutionError.new(exception.message)
         end
-      end
+      end if GraphqlModelMapper.handle_errors
       GraphqlModelMapper.set_constant("GraphqlModelMapperSchema".upcase, schema)
       GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase)
     end
