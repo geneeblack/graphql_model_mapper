@@ -129,19 +129,31 @@ module GraphqlModelMapper
                 allowed_scope_methods << s if (model.public_methods - model.instance_methods - Object.methods - ActiveRecord::Base.methods).include?(s)
               end
               if allowed_scope_methods.count > 0
-                typename = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(model.name)}Scope_Enum")
-                if !GraphqlModelMapper.defined_constant?(typename)
+                scope_enum_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(model.name)}Scope_Enum")
+                if !GraphqlModelMapper.defined_constant?(scope_enum_type_name)
                   enum_type = GraphQL::EnumType.define do
-                    name typename
+                    name scope_enum_type_name
                     description "scope enum for #{GraphqlModelMapper.get_type_name(model.name)}"
                     allowed_scope_methods.sort.each do |s|
                       value(s, "")
                     end
                   end
-                  GraphqlModelMapper.set_constant typename, enum_type
+                  GraphqlModelMapper.set_constant scope_enum_type_name, enum_type
                 end
-                default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil, :authorization=>:manage}
-              end
+                #default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil, :authorization=>:manage}
+
+                scope_list_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(model.name)}Scope_List")
+                if !GraphqlModelMapper.defined_constant?(scope_list_type_name)
+                  scope_list_type =  GraphQL::InputObjectType.define do
+                    name scope_list_type_name
+                    description "scope list for #{GraphqlModelMapper.get_type_name(model.name)}"
+                    argument :scope, !GraphqlModelMapper.get_constant(scope_enum_type_name)
+                    argument :arguments, GraphQL::STRING_TYPE.to_list_type
+                  end
+                  GraphqlModelMapper.set_constant scope_list_type_name, scope_list_type
+                end
+                default_arguments << {:name=>:scopes, :type=>GraphqlModelMapper.get_constant(scope_list_type_name).to_list_type , :default=>nil, :authorization=>:manage}
+              end            
             end
             default_arguments
         end

@@ -154,7 +154,7 @@ module GraphqlModelMapper
                     end                    
                     if reflection.macro == :has_many
                         if [:deep].include?(GraphqlModelMapper.nesting_strategy)
-                            connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key).connection_type}, property: reflection.name.to_sym, max_page_size: GraphqlModelMapper.max_page_size do
+                            connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_connection_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym, max_page_size: GraphqlModelMapper.max_page_size do
                                 if GraphqlModelMapper.use_authorize
                                     authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
                                     model_name klass.name
@@ -162,7 +162,7 @@ module GraphqlModelMapper
                                 end
                             end 
                         else
-                            field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key).to_list_type}, property: reflection.name.to_sym do
+                            field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_list_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym do
                                 if GraphqlModelMapper.use_authorize
                                     authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
                                     model_name klass.name
@@ -270,6 +270,76 @@ module GraphqlModelMapper
             params 
         end
     
+
+        def self.get_connection_type(model_name, output_type)
+            connection_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(model_name))}Connection"
+            if GraphqlModelMapper.defined_constant?(connection_type_name)
+                connection_type = GraphqlModelMapper.get_constant(connection_type_name)
+            else
+                connection_type = output_type.define_connection do
+                    name connection_type_name
+                    field :total, hash_key: :total do
+                        type types.Int
+                        resolve ->(obj, args, ctx) {
+                            obj.nodes.limit(nil).count
+                            #obj.nodes.length  
+                        }
+                    end
+                end
+                GraphqlModelMapper.set_constant(connection_type_name, connection_type)
+            end
+            return GraphqlModelMapper.get_constant(connection_type_name)
+        end
+
+        def self.get_list_type(model_name, output_type)
+            list_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(model_name))}List"     
+            if GraphqlModelMapper.defined_constant?(list_type_name)
+                list_type = GraphqlModelMapper.get_constant(list_type_name)
+            else
+                list_type = GraphQL::ObjectType.define do
+                    name(list_type_name)
+                
+                    field :items, -> {output_type.to_list_type}, hash_key: :items do
+                        argument :per_page, GraphQL::INT_TYPE
+                        argument :page, GraphQL::INT_TYPE
+                        resolve->(obj, args, ctx){
+                            first_rec = nil
+                            last_rec = nil
+                            limit = GraphqlModelMapper.max_page_size.to_i
+                            
+                            if args[:per_page]
+                                per_page = args[:per_page].to_i
+                                raise GraphQL::ExecutionError.new("per_page must be greater than 0") if per_page < 1
+                                raise GraphQL::ExecutionError.new("you requested more items than the maximum page size #{limit}, please reduce your requested per_page entry") if per_page > limit
+                                limit = [per_page,limit].min
+                            end
+                            if args[:page]
+                                page = args[:page].to_i
+                                raise GraphQL::ExecutionError.new("page must be greater than 0") if page < 1
+                                max_page = (obj.count/limit).ceil
+                                raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the maximum number of pages #{max_page}") if page > max_page
+                                obj = obj.offset((page-1)*limit)
+                            end
+                            begin
+                                obj.limit(0).to_a
+                            rescue ActiveRecord::StatementInvalid => e
+                                raise GraphQL::ExecutionError.new(e.message.sub(" AND (1=1)", "").sub(" LIMIT 0", ""))
+                            end
+                            obj = obj.limit(limit)
+                            obj
+                        }
+                    end
+                    field :total, -> {GraphQL::INT_TYPE}, hash_key: :total do 
+                        resolve->(obj,args, ctx){
+                            obj.count
+                        }
+                    end
+                end
+                GraphqlModelMapper.set_constant(list_type_name, list_type)
+            end
+            GraphqlModelMapper.get_constant(list_type_name)
+        end
+
         def self.graphql_default_types(
                 input_type: {
                     required_attributes: [], 

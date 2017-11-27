@@ -3,6 +3,7 @@ module GraphqlModelMapper
     def self.query_resolver(obj, args, ctx, name)
         #binding.pry
         obj_context = obj || name.classify.constantize
+        model = name.classify.constantize
         select_args = args[:select] || args
     
         if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query)
@@ -11,15 +12,39 @@ module GraphqlModelMapper
         classmethods = []
         scope_allowed = false
         with_deleted_allowed = false
+
+        if select_args[:scopes]
+          input_scopes = select_args[:scopes]
+          allowed_scopes = []
+          input_scopes.each do |s|
+            if model.public_methods.include?(s[:scope].to_sym)
+              allowed_scopes << {method: s[:scope], args: s[:arguments] }
+            else
+              next
+            end
+          end
+          errors = []
+          allowed_scopes.each do |a|
+            begin
+              obj_context = obj_context.send(a[:method.to_sym], *a[:args])
+            rescue => e
+              errors << "scope method: #{a[:method]} arguments: #{a[:args] || []} error: #{e.message}"
+            end
+          end
+          if errors.length > 0
+            raise GraphQL::ExecutionError.new(errors.join("; "))
+          end
+        end
         if select_args[:scope]
-          classmethods = obj_context.methods - Object.methods
-          scope_allowed = classmethods.include?(select_args[:scope].to_sym)
+          scope_allowed = model.public_methods.include?(select_args[:scope].to_sym)
           raise GraphQL::ExecutionError.new("error: invalid scope '#{select_args[:scope]}' specified, '#{select_args[:scope]}' method does not exist on '#{obj_context.class_name.classify}'") unless scope_allowed
         end
         if select_args[:with_deleted]
-          classmethods = obj_context.methods - Object.methods
-          with_deleted_allowed = classmethods.include?(:with_deleted)
+          with_deleted_allowed = model.public_methods.include?(:with_deleted)
           raise GraphQL::ExecutionError.new("error: invalid usage of 'with_deleted', 'with_deleted' method does not exist on '#{obj_context.class_name.classify}'") unless with_deleted_allowed
+        end
+        if with_deleted_allowed && select_args[:with_deleted]
+          obj_context = obj_context.send(:with_deleted)
         end
 
         implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
@@ -30,8 +55,12 @@ module GraphqlModelMapper
           end
         end
         if select_args[:id]
-
-          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(select_args[:id])
+          type_name, item_id = nil
+          begin
+            type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(select_args[:id]))
+          rescue => e
+            raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve id: #{e.message}")
+          end
           raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve type for id:'#{select_args[:id]}'") if type_name.nil?
           model_name = GraphqlModelMapper.get_constant(type_name.upcase).metadata[:model_name].to_s.classify
           raise GraphQL::ExecutionError.new("incorrect global id '#{select_args[:id]}': expected global id for '#{name}', received global id for '#{model_name}'") if model_name != name 
@@ -41,7 +70,7 @@ module GraphqlModelMapper
           finder_array = []
           errors = []
           select_args[:ids].each do |id|
-            type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(id)
+            type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(id))
             if type_name.nil?
               errors << "incorrect global id: unable to resolve type for id:'#{id}'"
               next
@@ -66,9 +95,8 @@ module GraphqlModelMapper
         end
         if select_args[:where]
           obj_context = obj_context.where(select_args[:where])
-        end
-        if with_deleted_allowed
-          obj_context = obj_context.with_deleted
+        else
+          obj_context = obj_context.where("1=1")
         end
         if scope_allowed
           obj_context = obj_context.send(select_args[:scope].to_sym)
@@ -79,12 +107,11 @@ module GraphqlModelMapper
         if select_args[:explain]
           obj_context = obj_context.limit(1)
           obj_context = obj_context.eager_load(implied_includes)
-          raise GraphQL::ExecutionError.new(obj_context.explain.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : ""))
+          raise GraphQL::ExecutionError.new(obj_context.explain.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : "").sub(" AND (1=1)","").sub(" WHERE (1=1)",""))
         end
         #if select_args[:limit].nil?
-        #    obj_context = obj_context.limit(100)
+        #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
         #end
-        obj_context = obj_context.where("1=1")
         obj_context
     end
 
@@ -105,7 +132,7 @@ module GraphqlModelMapper
         rescue => e
             raise e #GraphQL::ExecutionError.new("error: delete")
         end
-        if model.methods.include?(:with_deleted)
+        if model.public_methods.include?(:with_deleted)
             items.with_deleted
         else
             items
@@ -141,6 +168,10 @@ module GraphqlModelMapper
       selection.name == 'nodes'
     end
 
+    def self.using_items_pagination?(selection)
+      selection.name == 'items'
+    end
+
     def self.has_reflection_with_name?(class_name, selection_name)
       class_name.reflect_on_all_associations.select{|m|m.name == selection_name.to_sym}.present?
     end
@@ -165,6 +196,11 @@ module GraphqlModelMapper
         end
 
         if using_nodes_pagination?(selection)
+          get_implied_includes(class_name, selection, dependencies)
+          next
+        end
+
+        if using_items_pagination?(selection)
           get_implied_includes(class_name, selection, dependencies)
           next
         end

@@ -19,6 +19,10 @@ module GraphqlModelMapper
     fields
   end
 
+  def self.generate_secret_token
+    "secret_token: '#{SecureRandom.hex(64)}'"
+  end
+
   def self.schema_mutations
     fields = []
     GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_create)}.each { |t|

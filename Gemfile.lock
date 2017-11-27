@@ -6,6 +6,7 @@ PATH
       activerecord (>= 3.2.22.5)
       activesupport (>= 3.2.22.5)
       graphql (>= 1.7.5)
+      graphql-errors (>= 0.1.0)
       rails (>= 3.2.22.5)
 
 GEM
@@ -43,6 +44,8 @@ GEM
     concurrent-ruby (1.0.5)
     erubis (2.7.0)
     graphql (1.7.5)
+    graphql-errors (0.1.0)
+      graphql (>= 1.6.0, < 2)
     hike (1.2.3)
     i18n (0.9.1)
       concurrent-ruby (~> 1.0)
@@ -101,6 +104,7 @@ DEPENDENCIES
   activesupport (~> 3.2.22.5)
   bundler (~> 1.16)
   graphql (~> 1.7.5)
+  graphql-errors (~> 0.1.0)
   graphql_model_mapper!
   minitest (~> 5.0)
   rails (~> 3.2.22.5)
