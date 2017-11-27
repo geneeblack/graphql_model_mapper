@@ -62,7 +62,7 @@ module GraphqlModelMapper
           type_name, item_id = nil
           begin
             type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(id))
-          rescue
+          rescue => e
             raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve id: #{e.message}")            
           end
           
