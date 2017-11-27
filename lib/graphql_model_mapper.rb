@@ -6,6 +6,7 @@ require "graphql_model_mapper/query"
 require "graphql_model_mapper/resolve"
 require "graphql_model_mapper/schema"
 require "graphql_model_mapper/utility"
+require "graphql_model_mapper/encryption"
 require "graphql_model_mapper/version"
 require 'graphql_model_mapper/railtie' if defined?(Rails)
 
@@ -21,6 +22,8 @@ module GraphqlModelMapper
   mattr_accessor :default_nodes_field
   mattr_accessor :bidirectional_pagination
   mattr_accessor :handle_errors
+  mattr_accessor :secret_token
+  
   
 
   @@type_case = :camelize
@@ -33,7 +36,7 @@ module GraphqlModelMapper
   @@default_nodes_field = false
   @@bidirectional_pagination = false
   @@handle_errors = false
-  
+  @@secret_token = '3eb6db5a9026c547c72708438d496d942e976b252138db7e4e0ee5edd7539457d3ed0fa02ee5e7179420ce5290462018591adaf5f42adcf855da04877827def2'
 
 
   class << self

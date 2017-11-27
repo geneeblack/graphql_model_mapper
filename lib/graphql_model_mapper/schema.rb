@@ -1,5 +1,5 @@
 module GraphqlModelMapper
-    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false, nesting_strategy: :deep, type_case: :camelize, max_page_size: 100, scan_for_polymorphic_associations: false, mutation_resolve_wrapper: nil, query_resolve_wrapper: nil, bidirectional_pagination: false, default_nodes_field: false, handle_errors: false)
+    def self.Schema(log_query_depth: false, log_query_complexity: false, use_backtrace: false, use_authorize: false, nesting_strategy: :deep, type_case: :camelize, max_page_size: 100, scan_for_polymorphic_associations: false, mutation_resolve_wrapper: nil, query_resolve_wrapper: nil, bidirectional_pagination: false, default_nodes_field: false, handle_errors: false, secret_token: nil)
 
       return GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase) if GraphqlModelMapper.defined_constant?("GraphqlModelMapperSchema".upcase)
       GraphqlModelMapper.use_authorize = use_authorize
@@ -21,6 +21,10 @@ module GraphqlModelMapper
         GraphqlModelMapper.mutation_resolve_wrapper = mutation_resolve_wrapper
       else
         GraphqlModelMapper.mutation_resolve_wrapper = GraphqlModelMapper::Resolve::ResolveWrapper
+      end
+
+      if secret_token
+        GraphqlModelMapper.secret_token = secret_token
       end
 
 
@@ -51,11 +55,11 @@ module GraphqlModelMapper
 
         # Create UUIDs by joining the type name & ID, then base64-encoding it
         id_from_object ->(object, type_definition, context) {
-          GraphQL::Schema::UniqueWithinType.encode(type_definition.name, object.id)
+          GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(type_definition.name, object.id))
         }
 
         object_from_id ->(id, context) {
-          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(id)
+          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(id))
           
           type = GraphqlModelMapper.get_constant(type_name.upcase)
           raise GraphQL::ExecutionError.new("unknown type for id: #{id}") if type.nil?

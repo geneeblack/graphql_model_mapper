@@ -6,6 +6,7 @@ PATH
       activerecord (>= 3.2.22.5)
       activesupport (>= 3.2.22.5)
       graphql (>= 1.7.5)
+      graphql-errors (>= 0.1.0)
       rails (>= 3.2.22.5)
 
 GEM

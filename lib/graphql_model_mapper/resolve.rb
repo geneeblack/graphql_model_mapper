@@ -17,7 +17,7 @@ module GraphqlModelMapper
           input_scopes = select_args[:scopes]
           allowed_scopes = []
           input_scopes.each do |s|
-            if obj_context.methods.include?(s[:scope].to_sym)
+            if model.public_methods.include?(s[:scope].to_sym)
               allowed_scopes << {method: s[:scope], args: s[:arguments] }
             else
               next
@@ -36,12 +36,11 @@ module GraphqlModelMapper
           end
         end
         if select_args[:scope]
-          classmethods = obj_context.methods - Object.methods
-          scope_allowed = classmethods.include?(select_args[:scope].to_sym)
+          scope_allowed = model.public_methods.include?(select_args[:scope].to_sym)
           raise GraphQL::ExecutionError.new("error: invalid scope '#{select_args[:scope]}' specified, '#{select_args[:scope]}' method does not exist on '#{obj_context.class_name.classify}'") unless scope_allowed
         end
         if select_args[:with_deleted]
-          with_deleted_allowed = model.methods.include?(:with_deleted)
+          with_deleted_allowed = model.public_methods.include?(:with_deleted)
           raise GraphQL::ExecutionError.new("error: invalid usage of 'with_deleted', 'with_deleted' method does not exist on '#{obj_context.class_name.classify}'") unless with_deleted_allowed
         end
         if with_deleted_allowed && select_args[:with_deleted]
@@ -57,7 +56,7 @@ module GraphqlModelMapper
         end
         if select_args[:id]
 
-          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(select_args[:id])
+          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(select_args[:id]))
           raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve type for id:'#{select_args[:id]}'") if type_name.nil?
           model_name = GraphqlModelMapper.get_constant(type_name.upcase).metadata[:model_name].to_s.classify
           raise GraphQL::ExecutionError.new("incorrect global id '#{select_args[:id]}': expected global id for '#{name}', received global id for '#{model_name}'") if model_name != name 
@@ -67,7 +66,7 @@ module GraphqlModelMapper
           finder_array = []
           errors = []
           select_args[:ids].each do |id|
-            type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(id)
+            type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(id))
             if type_name.nil?
               errors << "incorrect global id: unable to resolve type for id:'#{id}'"
               next
@@ -129,7 +128,7 @@ module GraphqlModelMapper
         rescue => e
             raise e #GraphQL::ExecutionError.new("error: delete")
         end
-        if model.methods.include?(:with_deleted)
+        if model.public_methods.include?(:with_deleted)
             items.with_deleted
         else
             items
