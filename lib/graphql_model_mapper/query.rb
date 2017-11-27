@@ -59,8 +59,21 @@ module GraphqlModelMapper
                   end
                   GraphqlModelMapper.set_constant typename, enum_type
                 end
-                default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil, :authorization=>:manage}
+                #default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil, :authorization=>:manage}
               end
+
+              scope_list_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(model.name)}Scope_List")
+              if !GraphqlModelMapper.defined_constant?(scope_list_type_name)
+                scope_list_type =  GraphQL::InputObjectType.define do
+                  name scope_list_type_name
+                  description "scope list for #{GraphqlModelMapper.get_type_name(model.name)}"
+                  argument :scope, GraphqlModelMapper.get_constant(typename)
+                  argument :params, GraphQL::STRING_TYPE.to_list_type
+                end
+                GraphqlModelMapper.set_constant scope_list_type_name, scope_list_type
+              end
+              default_arguments << {:name=>:scopes, :type=>GraphqlModelMapper.get_constant(scope_list_type_name).to_list_type , :default=>nil, :authorization=>:manage}
+
             end
             default_arguments
         end

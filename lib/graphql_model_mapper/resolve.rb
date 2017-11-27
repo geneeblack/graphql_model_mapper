@@ -11,8 +11,20 @@ module GraphqlModelMapper
         classmethods = []
         scope_allowed = false
         with_deleted_allowed = false
+        if select_args[:scopes]
+          input_scopes = select_args[:scopes]
+          allowed_scopes = []
+          input_scopes.each do |s|
+            if obj_context.methods.include?(s[:scope].to_sym)
+              allowed_scopes << {method: s[:scope], args: s[:params] }
+            end
+          end
+          allowed_scopes.each do |a|
+            obj_context = obj_context.send(a[:method.to_sym], *a[:args])
+          end
+        end
         if select_args[:scope]
-          classmethods = obj_context.methods - Object.methods
+            classmethods = obj_context.methods - Object.methods
           scope_allowed = classmethods.include?(select_args[:scope].to_sym)
           raise GraphQL::ExecutionError.new("error: invalid scope '#{select_args[:scope]}' specified, '#{select_args[:scope]}' method does not exist on '#{obj_context.class_name.classify}'") unless scope_allowed
         end
