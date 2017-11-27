@@ -104,7 +104,8 @@ module GraphqlModelMapper
         rescue_from do |exception|
           GraphQL::ExecutionError.new(exception.message)
         end
-      end if GraphqlModelMapper.handle_errors
+      end if GraphqlModelMapper.handle_errors && GraphQL.const_defined?("Errors")
+
       GraphqlModelMapper.set_constant("GraphqlModelMapperSchema".upcase, schema)
       GraphqlModelMapper.get_constant("GraphqlModelMapperSchema".upcase)
     end

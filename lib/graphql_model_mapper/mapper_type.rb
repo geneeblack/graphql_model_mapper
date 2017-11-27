@@ -316,7 +316,7 @@ module GraphqlModelMapper
                             if args[:page]
                                 page = args[:page].to_i
                                 raise GraphQL::ExecutionError.new("page must be greater than 0") if page < 1
-                                max_page = (obj.count/per_page).ceil
+                                max_page = (obj.count/limit).ceil
                                 raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the maximum number of pages #{max_page}") if page > max_page
                                 obj = obj.offset((page-1)*limit)
                             end
