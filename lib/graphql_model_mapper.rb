@@ -35,7 +35,7 @@ module GraphqlModelMapper
   @@mutation_resolve_wrapper = nil
   @@default_nodes_field = false
   @@bidirectional_pagination = false
-  @@handle_errors = false
+  @@handle_errors = true
   @@secret_token = '3eb6db5a9026c547c72708438d496d942e976b252138db7e4e0ee5edd7539457d3ed0fa02ee5e7179420ce5290462018591adaf5f42adcf855da04877827def2'
 
 
