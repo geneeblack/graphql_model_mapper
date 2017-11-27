@@ -187,7 +187,7 @@ Some other attributes that you can set on the macro functions in addition to the
     scope_methods:  # scope methods available to be used in the query, these can be parameterized (must not be named parameters, must be accepted as string arguments and coerced in the method if needed) and must be written so that they valid in the presence of other tables which may be included in the associations
     arguments:      # a list of argument definitions to override the default GraphQL arguments, if using your own arguments you will need to override the query resolver to act on those arguments 
     
-Arguments should be a list of objects with the following attirbutes (*required)
+Arguments should be a list of objects with the following attributes (*required)
 
     *name - displayed name of the attribute
     *type - GraphQL type of the attribute
