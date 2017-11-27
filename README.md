@@ -206,6 +206,7 @@ The default arguments handled by the default resolver and exposed on the query a
     {:name=>:offset,    :type=>GraphQL::INT_TYPE, :default=>nil},                                           # specifies an offset for the start of the records returned
     {:name=>:order,     :type=>GraphQL::STRING_TYPE, :default=>nil, :authorization=>:manage},               # a string value that is passed to ActiveRecord query specifying the output order 
     {:name=>:where,     :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil, :authorization=>:manage}]  # a string array for use in ActiveRecord query, can be a string or a query/value array to be used by the query ["model.id =? and model.date is not nul]", "1"]
+    {:name=>:scopes,     :type=>ModelScopeList, :default=>nil, :authorization=>:manage}]                    # a list of ModelScopeEnums exposed on the graphql_query/graphql_delete macro, :allowed_scopes and their optional arguments string array
 
 ## graphql_delete
     description:
