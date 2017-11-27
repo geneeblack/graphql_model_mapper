@@ -25,7 +25,7 @@ module GraphqlModelMapper
             begin
               obj_context = obj_context.send(a[:method.to_sym], *a[:args])
             rescue => e
-              raise GraphQL::ExecutionError.new("method: #{name}.#{a[:method]} params: #{a[:args]} error: #{e.message}")
+              raise GraphQL::ExecutionError.new("scope method: #{name}.#{a[:method]} params: #{a[:args]} error: #{e.message}")
             end
           end
         end
