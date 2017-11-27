@@ -68,7 +68,7 @@ module GraphqlModelMapper
                   name scope_list_type_name
                   description "scope list for #{GraphqlModelMapper.get_type_name(model.name)}"
                   argument :scope, GraphqlModelMapper.get_constant(typename)
-                  argument :params, GraphQL::STRING_TYPE.to_list_type
+                  argument :arguments, GraphQL::STRING_TYPE.to_list_type
                 end
                 GraphqlModelMapper.set_constant scope_list_type_name, scope_list_type
               end

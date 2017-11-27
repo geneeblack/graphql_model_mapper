@@ -16,7 +16,7 @@ module GraphqlModelMapper
           allowed_scopes = []
           input_scopes.each do |s|
             if obj_context.methods.include?(s[:scope].to_sym)
-              allowed_scopes << {method: s[:scope], args: s[:params] }
+              allowed_scopes << {method: s[:scope], args: s[:arguments] }
             else
               next
             end
@@ -25,7 +25,7 @@ module GraphqlModelMapper
             begin
               obj_context = obj_context.send(a[:method.to_sym], *a[:args])
             rescue => e
-              raise GraphQL::ExecutionError.new("scope method: #{name}.#{a[:method]} params: #{a[:args]} error: #{e.message}")
+              raise GraphQL::ExecutionError.new("scope method: #{name}.#{a[:method]} arguments: #{a[:args] || []} error: #{e.message}")
             end
           end
         end
