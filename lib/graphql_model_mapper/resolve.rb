@@ -20,7 +20,11 @@ module GraphqlModelMapper
             end
           end
           allowed_scopes.each do |a|
-            obj_context = obj_context.send(a[:method.to_sym], *a[:args])
+            begin
+              obj_context = obj_context.send(a[:method.to_sym], *a[:args])
+            rescue => e
+              raise GraphQL::ExecutionError.new("method: #{name}.#{a[:method]} params: #{a[:args]} error: #{e.message}")
+            end
           end
         end
         if select_args[:scope]
