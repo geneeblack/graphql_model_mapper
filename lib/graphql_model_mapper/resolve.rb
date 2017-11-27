@@ -3,6 +3,7 @@ module GraphqlModelMapper
     def self.query_resolver(obj, args, ctx, name)
         #binding.pry
         obj_context = obj || name.classify.constantize
+        model = name.classify.constantize
         select_args = args[:select] || args
     
         if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query)
@@ -11,6 +12,7 @@ module GraphqlModelMapper
         classmethods = []
         scope_allowed = false
         with_deleted_allowed = false
+
         if select_args[:scopes]
           input_scopes = select_args[:scopes]
           allowed_scopes = []
@@ -21,23 +23,29 @@ module GraphqlModelMapper
               next
             end
           end
+          errors = []
           allowed_scopes.each do |a|
             begin
               obj_context = obj_context.send(a[:method.to_sym], *a[:args])
             rescue => e
-              raise GraphQL::ExecutionError.new("scope method: #{name}.#{a[:method]} arguments: #{a[:args] || []} error: #{e.message}")
+              errors << "scope method: #{a[:method]} arguments: #{a[:args] || []} error: #{e.message}"
             end
+          end
+          if errors.length > 0
+            raise GraphQL::ExecutionError.new(errors.join("; "))
           end
         end
         if select_args[:scope]
-            classmethods = obj_context.methods - Object.methods
+          classmethods = obj_context.methods - Object.methods
           scope_allowed = classmethods.include?(select_args[:scope].to_sym)
           raise GraphQL::ExecutionError.new("error: invalid scope '#{select_args[:scope]}' specified, '#{select_args[:scope]}' method does not exist on '#{obj_context.class_name.classify}'") unless scope_allowed
         end
         if select_args[:with_deleted]
-          classmethods = obj_context.methods - Object.methods
-          with_deleted_allowed = classmethods.include?(:with_deleted)
+          with_deleted_allowed = model.methods.include?(:with_deleted)
           raise GraphQL::ExecutionError.new("error: invalid usage of 'with_deleted', 'with_deleted' method does not exist on '#{obj_context.class_name.classify}'") unless with_deleted_allowed
+        end
+        if with_deleted_allowed && select_args[:with_deleted]
+          obj_context = obj_context.send(:with_deleted)
         end
 
         implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
@@ -86,9 +94,6 @@ module GraphqlModelMapper
           obj_context = obj_context.where(select_args[:where])
         else
           obj_context = obj_context.where("1=1")
-        end
-        if with_deleted_allowed
-          obj_context = obj_context.with_deleted
         end
         if scope_allowed
           obj_context = obj_context.send(select_args[:scope].to_sym)

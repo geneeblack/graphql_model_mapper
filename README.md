@@ -44,9 +44,7 @@ The default input/output types generated for the model are based on the default 
             primary_keys: true, 
             validation_keys: false, 
             association_macro: nil, 
-            source_nulls: false,
-            type_key: :query,
-            type_sub_key: :input_type
+            source_nulls: false
         },
         output_type: {
             required_attributes: [], 
@@ -56,9 +54,7 @@ The default input/output types generated for the model are based on the default 
             primary_keys: true, 
             validation_keys: false, 
             association_macro: nil, 
-            source_nulls: false,
-            type_key: :query,
-            type_sub_key: :output_type
+            source_nulls: false
         }
     }
 
@@ -188,13 +184,14 @@ Some other attributes that you can set on the macro functions in addition to the
 ## graphql_query
 
     description:    # a short description of the query
-    scope_methods:  # scope methods available to be used in the query, these should not be parameterized and must be written so that they valid in the presence of other tables which may be included in the associations
-    arguments:      # a list of argument definitions to override the default arguments, if using your own arguments you will need to override the query resolver to act on those arguments, the default 
+    scope_methods:  # scope methods available to be used in the query, these can be parameterized (must not be named parameters, must be accepted as string arguments and coerced in the method if needed) and must be written so that they valid in the presence of other tables which may be included in the associations
+    arguments:      # a list of argument definitions to override the default GraphQL arguments, if using your own arguments you will need to override the query resolver to act on those arguments 
     
 Arguments should be a list of objects with the following attirbutes (*required)
+
     *name - displayed name of the attribute
     *type - GraphQL type of the attribute
-    default - default value
+    default - default argument value
     authorization - authorization level for the attribute (if GraphqlModelMapper.use_authorize = true this authorization will be compared to the authorized ability for the user on the model to which this attribute applies)
 
 The default arguments handled by the default resolver and exposed on the query and delete mutations are:
