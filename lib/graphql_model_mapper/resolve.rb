@@ -17,6 +17,8 @@ module GraphqlModelMapper
           input_scopes.each do |s|
             if obj_context.methods.include?(s[:scope].to_sym)
               allowed_scopes << {method: s[:scope], args: s[:params] }
+            else
+              next
             end
           end
           allowed_scopes.each do |a|
