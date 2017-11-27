@@ -55,8 +55,12 @@ module GraphqlModelMapper
           end
         end
         if select_args[:id]
-
-          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(select_args[:id]))
+          type_name, item_id = nil
+          begin
+            type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(select_args[:id]))
+          rescue => e
+            raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve id: #{e.message}")
+          end
           raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve type for id:'#{select_args[:id]}'") if type_name.nil?
           model_name = GraphqlModelMapper.get_constant(type_name.upcase).metadata[:model_name].to_s.classify
           raise GraphQL::ExecutionError.new("incorrect global id '#{select_args[:id]}': expected global id for '#{name}', received global id for '#{model_name}'") if model_name != name 

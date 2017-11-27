@@ -59,7 +59,12 @@ module GraphqlModelMapper
         }
 
         object_from_id ->(id, context) {
-          type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(id))
+          type_name, item_id = nil
+          begin
+            type_name, item_id = GraphQL::Schema::UniqueWithinType.decode(GraphqlModelMapper::Encryption.decode(id))
+          rescue
+            raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve id: #{e.message}")            
+          end
           
           type = GraphqlModelMapper.get_constant(type_name.upcase)
           raise GraphQL::ExecutionError.new("unknown type for id: #{id}") if type.nil?
