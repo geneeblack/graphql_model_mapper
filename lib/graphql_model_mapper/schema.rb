@@ -75,17 +75,6 @@ module GraphqlModelMapper
     
           raise GraphQL::ExecutionError.new("unauthorized access for id: #{id}") if !authorized_proc.call(context, model_name, access_type)
           model = model_name.to_s.classify.constantize
-=begin
-          args = {
-            item_id: item_id
-          }
-          resolver = -> (obj, args, ctx) {              
-            items = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, nil)
-          }
-          resolve = GraphqlModelMapper::Query.get_resolver(resolver)
-          resolve.call(model, args, context)
-=end          
-
           model.unscoped.find(item_id)
         }
       end

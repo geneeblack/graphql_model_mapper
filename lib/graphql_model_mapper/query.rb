@@ -133,7 +133,6 @@ module GraphqlModelMapper
                       resolve -> (obj, args, ctx) {
                           limit = GraphqlModelMapper.max_page_size
                           raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if args[:first].to_i > limit || args[:last].to_i > limit
-
                           obj
                       }
                   end

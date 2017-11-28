@@ -302,32 +302,7 @@ module GraphqlModelMapper
                     field :items, -> {output_type.to_list_type}, hash_key: :items do
                         argument :per_page, GraphQL::INT_TYPE
                         argument :page, GraphQL::INT_TYPE
-                        resolve->(obj, args, ctx){
-                            first_rec = nil
-                            last_rec = nil
-                            limit = GraphqlModelMapper.max_page_size.to_i
-                            
-                            if args[:per_page]
-                                per_page = args[:per_page].to_i
-                                raise GraphQL::ExecutionError.new("per_page must be greater than 0") if per_page < 1
-                                raise GraphQL::ExecutionError.new("you requested more items than the maximum page size #{limit}, please reduce your requested per_page entry") if per_page > limit
-                                limit = [per_page,limit].min
-                            end
-                            if args[:page]
-                                page = args[:page].to_i
-                                raise GraphQL::ExecutionError.new("page must be greater than 0") if page < 1
-                                max_page = (obj.count/limit).ceil
-                                raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the maximum number of pages #{max_page}") if page > max_page
-                                obj = obj.offset((page-1)*limit)
-                            end
-                            begin
-                                obj.limit(0).to_a
-                            rescue ActiveRecord::StatementInvalid => e
-                                raise GraphQL::ExecutionError.new(e.message.sub(" AND (1=1)", "").sub(" LIMIT 0", ""))
-                            end
-                            obj = obj.limit(limit)
-                            obj
-                        }
+                        resolve -> (obj,args,ctx){ GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx) }
                     end
                     field :total, -> {GraphQL::INT_TYPE}, hash_key: :total do 
                         resolve->(obj,args, ctx){
@@ -338,6 +313,29 @@ module GraphqlModelMapper
                 GraphqlModelMapper.set_constant(list_type_name, list_type)
             end
             GraphqlModelMapper.get_constant(list_type_name)
+        end
+
+
+        def self.resolve_list(obj, args, ctx)
+            first_rec = nil
+            last_rec = nil
+            limit = GraphqlModelMapper.max_page_size.to_i
+            
+            if args[:per_page]
+                per_page = args[:per_page].to_i
+                raise GraphQL::ExecutionError.new("per_page must be greater than 0") if per_page < 1
+                raise GraphQL::ExecutionError.new("you requested more items than the maximum page size #{limit}, please reduce your requested per_page entry") if per_page > limit
+                limit = [per_page,limit].min
+            end
+            if args[:page]
+                page = args[:page].to_i
+                raise GraphQL::ExecutionError.new("page must be greater than 0") if page < 1
+                max_page = (obj.count/limit).ceil
+                raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the maximum number of pages #{max_page}") if page > max_page
+                obj = obj.offset((page-1)*limit)
+            end
+            obj = obj.limit(limit)
+            obj
         end
 
         def self.graphql_default_types(
