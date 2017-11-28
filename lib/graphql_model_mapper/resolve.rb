@@ -12,6 +12,7 @@ module GraphqlModelMapper
         classmethods = []
         scope_allowed = false
         with_deleted_allowed = false
+        test_query = false
 
         if select_args[:scopes]
           input_scopes = select_args[:scopes]
@@ -34,10 +35,12 @@ module GraphqlModelMapper
           if errors.length > 0
             raise GraphQL::ExecutionError.new(errors.join("; "))
           end
+          test_query = true
         end
         if select_args[:scope]
           scope_allowed = model.public_methods.include?(select_args[:scope].to_sym)
           raise GraphQL::ExecutionError.new("error: invalid scope '#{select_args[:scope]}' specified, '#{select_args[:scope]}' method does not exist on '#{obj_context.class_name.classify}'") unless scope_allowed
+          test_query = true
         end
         if select_args[:with_deleted]
           with_deleted_allowed = model.public_methods.include?(:with_deleted)
@@ -45,6 +48,7 @@ module GraphqlModelMapper
         end
         if with_deleted_allowed && select_args[:with_deleted]
           obj_context = obj_context.send(:with_deleted)
+          test_query = true
         end
 
         implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
@@ -65,6 +69,7 @@ module GraphqlModelMapper
           model_name = GraphqlModelMapper.get_constant(type_name.upcase).metadata[:model_name].to_s.classify
           raise GraphQL::ExecutionError.new("incorrect global id '#{select_args[:id]}': expected global id for '#{name}', received global id for '#{model_name}'") if model_name != name 
           obj_context = obj_context.where(["#{obj_context.model_name.plural}.id = ?", item_id.to_i])
+          test_query = true
         end
         if select_args[:ids]
           finder_array = []
@@ -86,23 +91,29 @@ module GraphqlModelMapper
             raise GraphQL::ExecutionError.new(errors.join(";")) 
           end
           obj_context = obj_context.where(["`#{obj_context.model_name.plural}`.id in (?)", finder_array])
+          test_query = true
         end
         if select_args[:item_ids]
           obj_context = obj_context.where(["`#{obj_context.model_name.plural}`.id in (?)", select_args[:item_ids]])
+          test_query = true
         end
         if select_args[:item_id]
           obj_context = obj_context.where(["`#{obj_context.model_name.plural}`.id = ?", select_args[:item_id].to_i])
+          test_query = true
         end
         if select_args[:where]
           obj_context = obj_context.where(select_args[:where])
+          test_query = true
         else
           obj_context = obj_context.where("1=1")
         end
         if scope_allowed
           obj_context = obj_context.send(select_args[:scope].to_sym)
+          test_query = true
         end
         if select_args[:order]
           obj_context = obj_context.order(select_args[:order])
+          test_query = true
         end
         #check for sql errors
         begin
@@ -115,7 +126,7 @@ module GraphqlModelMapper
 
         rescue ActiveRecord::StatementInvalid =>  e
             raise GraphQL::ExecutionError.new(e.message.sub(" AND (1=1)", "").sub(" LIMIT 0", ""))
-        end
+        end if test_query
         if select_args[:explain]
           obj_context = obj_context.limit(1)
           obj_context = obj_context.eager_load(implied_includes)
