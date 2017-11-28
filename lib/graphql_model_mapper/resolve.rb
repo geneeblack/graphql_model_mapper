@@ -104,6 +104,12 @@ module GraphqlModelMapper
         if select_args[:order]
           obj_context = obj_context.order(select_args[:order])
         end
+        #check for sql errors
+        begin
+          obj_context.eager_load(implied_includes).limit(0).to_a
+        rescue ActiveRecord::StatementInvalid => e
+            raise GraphQL::ExecutionError.new(e.message.sub(" AND (1=1)", "").sub(" LIMIT 0", ""))
+        end
         if select_args[:explain]
           obj_context = obj_context.limit(1)
           obj_context = obj_context.eager_load(implied_includes)
@@ -112,6 +118,7 @@ module GraphqlModelMapper
         #if select_args[:limit].nil?
         #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
         #end
+
         obj_context
     end
 
@@ -311,10 +318,7 @@ module GraphqlModelMapper
       end
     
       def call(obj, args, ctx)
-        begin
           @resolve_func.call(obj, args, ctx)
-        
-       end
       end
     end
   end
