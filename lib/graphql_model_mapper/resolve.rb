@@ -106,8 +106,14 @@ module GraphqlModelMapper
         end
         #check for sql errors
         begin
-          obj_context.eager_load(implied_includes).limit(0).to_a
-        rescue ActiveRecord::StatementInvalid => e
+          GraphqlModelMapper.logger.info "GraphqlModelMapper: ****** testing query for validity"
+          test_statement = obj_context.includes(implied_includes)
+          if Rails.version.split(".").first.to_i > 3
+            test_statement = test_statement.references(implied_includes)
+          end
+          test_result = test_statement.limit(0).to_a
+
+        rescue ActiveRecord::StatementInvalid =>  e
             raise GraphQL::ExecutionError.new(e.message.sub(" AND (1=1)", "").sub(" LIMIT 0", ""))
         end
         if select_args[:explain]
