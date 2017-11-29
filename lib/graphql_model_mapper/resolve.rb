@@ -19,7 +19,7 @@ module GraphqlModelMapper
           allowed_scopes = []
           input_scopes.each do |s|
             if model.public_methods.include?(s[:scope].to_sym)
-              allowed_scopes << {method: s[:scope], args: s[:arguments] }
+              allowed_scopes << {method: s[:scope].to_sym, args: s[:arguments] }
             else
               next
             end
@@ -27,7 +27,7 @@ module GraphqlModelMapper
           errors = []
           allowed_scopes.each do |a|
             begin
-              obj_context = obj_context.send(a[:method.to_sym], *a[:args])
+             obj_context = obj_context.send(a[:method], *a[:args])
             rescue => e
               errors << "scope method: #{a[:method]} arguments: #{a[:args] || []} error: #{e.message}"
             end
