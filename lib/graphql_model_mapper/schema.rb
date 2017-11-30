@@ -115,6 +115,7 @@ module GraphqlModelMapper
         # create queries for each AR model object
         field :node, GraphQL::Relay::Node.field do
           description "Fetches an object given its globally unique ID"
+          argument :ep, GraphQL::STRING_TYPE
         end
 
         field :nodes, GraphQL::Relay::Node.plural_field do

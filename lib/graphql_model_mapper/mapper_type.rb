@@ -154,7 +154,8 @@ module GraphqlModelMapper
                     end                    
                     if reflection.macro == :has_many
                         if [:deep].include?(GraphqlModelMapper.nesting_strategy)
-                            connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_connection_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym, max_page_size: GraphqlModelMapper.max_page_size do
+                            #connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_connection_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym, max_page_size: GraphqlModelMapper.max_page_size do
+                            field reflection.name.to_sym, GraphqlModelMapper::MapperType.get_query_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)) do
                                 if GraphqlModelMapper.use_authorize
                                     authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
                                     model_name klass.name
@@ -162,8 +163,9 @@ module GraphqlModelMapper
                                 end
                             end 
                         else
-                            field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_list_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym do
-                                if GraphqlModelMapper.use_authorize
+                            #field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_list_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym do
+                            field reflection.name.to_sym, GraphqlModelMapper::MapperType.get_query_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)) do
+                                    if GraphqlModelMapper.use_authorize
                                     authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
                                     model_name klass.name
                                     access_type :read.to_s
@@ -271,18 +273,40 @@ module GraphqlModelMapper
         end
     
 
-        def self.get_connection_type(model_name, output_type)
-            connection_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(model_name))}Connection"
+        def self.get_query_type(model_name, output_type)
+            GraphqlModelMapper::Query.get_query(model_name, "description", "Query", nil, [], [], output_type)
+        end
+
+        def self.get_connection_type(model_name, output_type, root=false)
+            root = root && GraphqlModelMapper.encrypted_items
+            connection_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(model_name))}#{root ? "Root" : ""}Connection"
             if GraphqlModelMapper.defined_constant?(connection_type_name)
                 connection_type = GraphqlModelMapper.get_constant(connection_type_name)
             else
                 connection_type = output_type.define_connection do
                     name connection_type_name
+                    if root
+                        field :ep, hash_key: :ep do
+                            type GraphQL::STRING_TYPE
+                            resolve ->(obj, args, ctx) {
+                                GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.parent.irep_node.arguments.to_h.with_indifferent_access.to_json)).to_s
+                            }
+                        end
+                        field :qp, hash_key: :qp do
+                            type GraphQL::STRING_TYPE
+                            resolve ->(obj, args, ctx) {
+                                #binding.pry
+                                #ctx.query.variables.to_h.to_json
+                                #ctx.query.query_string
+                                GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
+                            }
+                        end
+                    end
                     field :total, hash_key: :total do
-                        type types.Int
+                        type GraphQL::INT_TYPE
                         resolve ->(obj, args, ctx) {
+                            binding.pry
                             obj.nodes.limit(nil).count
-                            #obj.nodes.length  
                         }
                     end
                 end
@@ -291,8 +315,9 @@ module GraphqlModelMapper
             return GraphqlModelMapper.get_constant(connection_type_name)
         end
 
-        def self.get_list_type(model_name, output_type)
-            list_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(model_name))}List"     
+        def self.get_list_type(model_name, output_type, root=false)
+            root = root && GraphqlModelMapper.encrypted_items
+            list_type_name = "#{GraphqlModelMapper.get_type_case(GraphqlModelMapper.get_type_name(model_name))}#{root ? "Root" : ""}List"     
             if GraphqlModelMapper.defined_constant?(list_type_name)
                 list_type = GraphqlModelMapper.get_constant(list_type_name)
             else
@@ -302,12 +327,34 @@ module GraphqlModelMapper
                     field :items, -> {output_type.to_list_type}, hash_key: :items do
                         argument :per_page, GraphQL::INT_TYPE
                         argument :page, GraphQL::INT_TYPE
-                        resolve -> (obj,args,ctx){ GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx) }
+                        resolve -> (obj,args,ctx){ 
+                            GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx) 
+                        }
                     end
                     field :total, -> {GraphQL::INT_TYPE}, hash_key: :total do 
                         resolve->(obj,args, ctx){
                             obj.count
                         }
+                    end
+                    if root
+                        field :ep, hash_key: :ep do
+                            type GraphQL::STRING_TYPE
+                            resolve ->(obj, args, ctx) {
+                                #binding.pry
+                                #ctx.query.variables.to_h.to_json
+                                #ctx.query.query_string
+                                GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.irep_node.arguments.to_h.with_indifferent_access.to_json)).to_s                            
+                            }
+                        end
+                        field :qp, hash_key: :qp do
+                            type GraphQL::STRING_TYPE
+                            resolve ->(obj, args, ctx) {
+                                #binding.pry
+                                #ctx.query.variables.to_h.to_json
+                                #ctx.query.query_string
+                                GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
+                            }
+                        end
                     end
                 end
                 GraphqlModelMapper.set_constant(list_type_name, list_type)
@@ -335,6 +382,7 @@ module GraphqlModelMapper
                 obj = obj.offset((page-1)*limit)
             end
             obj = obj.limit(limit)
+            #binding.pry
             obj
         end
 

@@ -10,11 +10,11 @@ module GraphqlModelMapper
     end
     
     def self.encode(text)
-      Base64.encode64(aes(:encrypt, text)).strip
+      Base64.encode64(ActiveSupport::Gzip.compress(aes(:encrypt, text))).strip
     end
     
     def self.decode(text)
-      aes(:decrypt, Base64.decode64(text))
+      aes(:decrypt, ActiveSupport::Gzip.decompress(Base64.decode64(text)))
     end
   end
 end
