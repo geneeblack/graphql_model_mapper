@@ -305,7 +305,7 @@ module GraphqlModelMapper
                     field :total, hash_key: :total do
                         type GraphQL::INT_TYPE
                         resolve ->(obj, args, ctx) {
-                            binding.pry
+                            #binding.pry
                             obj.nodes.limit(nil).count
                         }
                     end

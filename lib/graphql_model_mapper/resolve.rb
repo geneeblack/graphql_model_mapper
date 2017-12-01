@@ -107,7 +107,12 @@ module GraphqlModelMapper
           obj_context = obj_context.where(["`#{obj_context.model_name.plural}`.id = ?", select_args[:item_id].to_i])
         end
         if select_args[:where]
+          begin
           obj_context = obj_context.where(select_args[:where])
+          rescue => e
+            raise GraphQL::ExecutionError.new("#{e.message}: #{select_args[:where]}")
+            
+          end
           test_query = true
         #else
           #obj_context = obj_context.where("1=1")
@@ -139,7 +144,6 @@ module GraphqlModelMapper
         #if select_args[:limit].nil?
         #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
         #end
-
         obj_context
     end
 
