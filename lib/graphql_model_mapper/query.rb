@@ -93,7 +93,7 @@ module GraphqlModelMapper
             total_output_type = GraphqlModelMapper.get_constant(total_output_type_name)
           else
             if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
-              connection_type = GraphqlModelMapper::MapperType.get_connection_type(name, output_type, true)
+              connection_type = GraphqlModelMapper::MapperType.get_connection_type(name, output_type, false)
               total_output_type = GraphQL::ObjectType.define do
                 name total_output_type_name
                 connection :items, -> {connection_type}, max_page_size: GraphqlModelMapper.max_page_size do 
@@ -106,7 +106,7 @@ module GraphqlModelMapper
                   end
               end
             else
-                total_output_type = GraphqlModelMapper::MapperType.get_list_type(name, output_type, true)
+                total_output_type = GraphqlModelMapper::MapperType.get_list_type(name, output_type, false)
             end
             GraphqlModelMapper.set_constant(total_output_type_name, total_output_type)              
           end

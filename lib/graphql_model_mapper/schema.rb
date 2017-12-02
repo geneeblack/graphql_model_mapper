@@ -40,6 +40,7 @@ module GraphqlModelMapper
         GraphQL::Field.accepts_definitions(metadata_definitions)
         GraphQL::Argument.accepts_definitions(metadata_definitions)
         GraphQL::ObjectType.accepts_definitions(metadata_definitions)
+        GraphQL::BaseType.accepts_definitions(metadata_definitions)
         #end
 
       schema = GraphQL::Schema.define do
@@ -47,15 +48,20 @@ module GraphqlModelMapper
         default_max_page_size max_page_size.to_i
         mutation GraphqlModelMapper.MutationType
         query GraphqlModelMapper.QueryType
-        
+                
         resolve_type ->(type, obj, ctx) {
-          raise GraphQL::ExecutionError.new("unauthorized access: #{obj.class.name}") if !GraphqlModelMapper.authorized?(ctx, obj.class.name)
+          return GraphqlModelMapper::UNAUTHORIZED if !GraphqlModelMapper.authorized?(ctx, obj.class.name)
+          #raise GraphQL::ExecutionError.new("unauthorized access: #{obj.class.name}") if !GraphqlModelMapper.authorized?(ctx, obj.class.name)
           GraphqlModelMapper.get_constant("#{obj.class.name}Output".upcase)
         }
 
         # Create UUIDs by joining the type name & ID, then base64-encoding it
         id_from_object ->(object, type_definition, context) {
-          GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(type_definition.name, object.id))
+          begin
+            GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(type_definition.name, object.id))
+          rescue
+            ""
+          end
         }
 
         object_from_id ->(id, context) {
@@ -73,7 +79,8 @@ module GraphqlModelMapper
           access_type = type.metadata[:access_type]
           
     
-          raise GraphQL::ExecutionError.new("unauthorized access for id: #{id}") if !authorized_proc.call(context, model_name, access_type)
+          return GraphqlModelMapper::UNAUTHORIZED if GraphqlModelMapper.use_authorize && (!authorized_proc || !authorized_proc.call(context, model_name, access_type))
+          #raise GraphQL::ExecutionError.new("unauthorized access for id: #{id}") if !authorized_proc.call(context, model_name, access_type)
           model = model_name.to_s.classify.constantize
           model.unscoped.find(item_id)
         }
@@ -177,6 +184,22 @@ module GraphqlModelMapper
         success: true
       }
     }
+  end
+
+  GraphqlModelMapper::UNAUTHORIZED = GraphQL::ObjectType.define do
+    name "UnAuthorized"
+    description "this type is returned when no access is allowed to the original requested type"
+    field :message, GraphQL::STRING_TYPE do
+      resolve -> (obj, args, ctx) {
+        "you do not have authorization to access the requested type"
+      }
+    end
+    implements GraphQL::Relay::Node.interface
+    global_id_field :id do
+      resolve -> (obj, args, ctx) {
+        ""
+      }  
+    end 
   end
 
   GraphqlModelMapper::GEOMETRY_OBJECT_TYPE = GraphQL::ScalarType.define do
