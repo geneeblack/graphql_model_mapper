@@ -212,7 +212,7 @@ module GraphqlModelMapper
       node_selection = selection.selections.find { |sel| sel.name == 'node' }
 
       if node_selection.present?
-        get_implied_includes(class_name, node_selection, dependencies)
+        self.get_implied_includes(class_name, node_selection, dependencies)
       else
         dependencies
       end
@@ -228,29 +228,29 @@ module GraphqlModelMapper
         end
 
         if using_nodes_pagination?(selection)
-          get_implied_includes(class_name, selection, dependencies)
+          self.get_implied_includes(class_name, selection, dependencies)
           next
         end
 
         if using_items_pagination?(selection)
-          get_implied_includes(class_name, selection, dependencies)
+          self.get_implied_includes(class_name, selection, dependencies)
           next
         end
 
         if using_is_items_collection?(selection)
-          get_implied_includes(class_name, selection, dependencies)
+          self.get_implied_includes(class_name, selection, dependencies)
           next
         end
 
         if has_reflection_with_name?(class_name, name)
           begin
             current_class_name = selection.name.singularize.classify.constantize
-            dependencies[name] = get_implied_includes(current_class_name, selection)
+            dependencies[name] = self.get_implied_includes(current_class_name, selection)
           rescue NameError
             selection_name = class_name.reflections.with_indifferent_access[selection.name].class_name
             begin                  
               current_class_name = selection_name.singularize.classify.constantize
-              dependencies[selection.name.to_sym] = get_implied_includes(current_class_name, selection)
+              dependencies[selection.name.to_sym] = self.get_implied_includes(current_class_name, selection)
             rescue
                 # this will occur if the relation is polymorphic, since polymorphic associations do not have a class_name
                 GraphqlModelMapper.logger.info "implied_includes: #{class_name} could not resolve a class for relation #{selection.name}"
