@@ -195,9 +195,9 @@ module GraphqlModelMapper
       }
     end
     implements GraphQL::Relay::Node.interface
-    global_id_field :id do
+    field :id, !GraphQL::ID_TYPE do
       resolve -> (obj, args, ctx) {
-        ""
+        GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(GraphqlModelMapper::MapperType.graph_object(obj.class.name).name, obj.id))
       }  
     end 
   end
