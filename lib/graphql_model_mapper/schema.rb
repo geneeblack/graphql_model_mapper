@@ -195,9 +195,14 @@ module GraphqlModelMapper
       }
     end
     implements GraphQL::Relay::Node.interface
-    field :id, !GraphQL::ID_TYPE do
+    field :id, !GraphQL::ID_TYPE, property: :id do
       resolve -> (obj, args, ctx) {
-        GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(GraphqlModelMapper::MapperType.graph_object(obj.class.name).name, obj.id))
+        if obj.respond_to?(:id)
+          GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(GraphqlModelMapper::MapperType.graph_object(obj.class.name).name, obj.id))
+        else
+          #TODO : see if the original id can be sent here
+          ""
+        end
       }  
     end 
   end
