@@ -6,6 +6,9 @@ module GraphqlModelMapper
             arguments: [],
             scope_methods: []
           )
+          resolver = resolver || -> (obj, args, ctx) {              
+            items = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, name)
+          }
           
             #input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
             output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type)
@@ -85,10 +88,9 @@ module GraphqlModelMapper
             total_output_type = GraphqlModelMapper.get_constant(total_output_type_name)
           else
             if [:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
-              connection_type = GraphqlModelMapper::MapperType.get_connection_type(name, output_type, false)
               total_output_type = GraphQL::ObjectType.define do
                 name total_output_type_name
-                connection :items, -> {connection_type}, max_page_size: GraphqlModelMapper.max_page_size do 
+                connection :items, -> { GraphqlModelMapper::MapperType.get_connection_type(name, output_type, false) }, max_page_size: GraphqlModelMapper.max_page_size do 
                       resolve -> (obj, args, ctx) {
                           limit = GraphqlModelMapper.max_page_size
                           raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if args[:first].to_i > limit || args[:last].to_i > limit
@@ -97,7 +99,7 @@ module GraphqlModelMapper
                   end
               end
             else
-                total_output_type = GraphqlModelMapper::MapperType.get_list_type(name, output_type, false)
+                total_output_type = -> { GraphqlModelMapper::MapperType.get_list_type(name, output_type, false) }
             end
             GraphqlModelMapper.set_constant(total_output_type_name, total_output_type)              
           end

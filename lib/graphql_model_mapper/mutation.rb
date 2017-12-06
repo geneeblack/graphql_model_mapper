@@ -3,7 +3,13 @@ module GraphqlModelMapper
         def self.graphql_update(name: "",description:"",
             resolver: nil)
       
-      
+            resolver = resolver || -> (obj, inputs, ctx){
+              item = GraphqlModelMapper::Resolve.update_resolver(obj, inputs, ctx, name)
+              {
+                item: item
+              }
+            }
+          
             input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
             output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type)
       
@@ -15,6 +21,12 @@ module GraphqlModelMapper
             arguments: [],
             scope_methods: [])
             
+            resolver = resolver || -> (obj, inputs, ctx){
+              items = GraphqlModelMapper::Resolve.delete_resolver(obj, inputs, ctx, name)
+              {
+                items: items
+              }
+            }
             input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
             output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type).to_list_type
             self.get_delete_mutation(name, description, "Delete", resolver, arguments, scope_methods, input_type, output_type)
@@ -23,6 +35,12 @@ module GraphqlModelMapper
           def self.graphql_create(name: "", description:"",
             resolver: nil)
             
+            resolver = resolver || -> (obj, args, ctx){
+              item = GraphqlModelMapper::Resolve.create_resolver(obj, args, ctx, name)
+              {
+                item: item
+              }
+            }
             input_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :input_type)
             output_type = GraphqlModelMapper::MapperType.get_ar_object_with_params(name, type_sub_key: :output_type)
       
