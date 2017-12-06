@@ -238,10 +238,10 @@ module GraphqlModelMapper
             parent_name = "#{reflection.name}_type"
             parent_classes = has_with_deleted ? model.with_deleted.select("distinct #{parent_name}").map{|m| m.send("#{parent_name}".to_sym)} :  model.select("distinct #{parent_name}").map{|m| m.send("#{parent_name}".to_sym)}
             types = []
-            parent_classes.each do |p|
-                types << self.get_ar_object_with_params(p, type_sub_key: :output_type)
+            parent_classes.each do |p|                
+                types << self.get_ar_object_with_params(p, type_sub_key: :output_type) if p.classify.constantize.public_methods.include?(:graphql_query)
             end
-            if GraphqlModelMapper.use_authorize
+            if GraphqlModelMapper.use_authorize || types.length == 0
                 types << GraphqlModelMapper::UNAUTHORIZED
             end
             ret_type = GraphQL::UnionType.define do
