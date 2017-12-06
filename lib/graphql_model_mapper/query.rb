@@ -29,22 +29,14 @@ module GraphqlModelMapper
               {:name=>:order,   :type=>GraphQL::STRING_TYPE, :default=>nil, :authorization=>:manage}, 
               {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil, :authorization=>:manage }
             ]
-=begin            
-            default_arguments = default_arguments + [
-#              {:name=>:limit, :type=>GraphQL::INT_TYPE, :default=>GraphqlModelMapper.max_page_size}, 
-              {:name=>:first, :type=>GraphQL::INT_TYPE, :default=>nil}, 
-              {:name=>:last, :type=>GraphQL::INT_TYPE, :default=>nil}, 
-              {:name=>:offset, :type=>GraphQL::INT_TYPE, :default=>nil}] if ![:deep, :shallow].include?(GraphqlModelMapper.nesting_strategy)
-=end        
+
             scope_methods = scope_methods.map(&:to_sym)                        
-            #.select{|m| model.method(m.to_sym).arity == 0}
             if (model.public_methods - model.instance_methods - Object.methods - ActiveRecord::Base.methods).include?(:with_deleted)
               default_arguments << {:name=>:with_deleted, :type=>GraphQL::BOOLEAN_TYPE, :default=>false, :authorization=>:manage}
             end
             allowed_scope_methods = []
             if scope_methods.count > 0
               scope_methods.each do |s|
-                #.select{|m| model.method(m.to_sym).arity == 0}
                 allowed_scope_methods << s if (model.public_methods - model.instance_methods - Object.methods - ActiveRecord::Base.methods).include?(s)
               end
               if allowed_scope_methods.count > 0
@@ -59,7 +51,6 @@ module GraphqlModelMapper
                   end
                   GraphqlModelMapper.set_constant scope_enum_type_name, enum_type
                 end
-                #default_arguments << {:name=>:scope, :type=>GraphqlModelMapper.get_constant(typename), :default=>nil, :authorization=>:manage}
 
                 scope_list_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(model.name)}Scope_List")
                 if !GraphqlModelMapper.defined_constant?(scope_list_type_name)
@@ -78,6 +69,7 @@ module GraphqlModelMapper
         end
 
         def self.get_query(name, description, operation_name, resolver, arguments, scope_methods, output_type)
+
             
           query_type_name = GraphqlModelMapper.get_type_case("#{GraphqlModelMapper.get_type_name(name)}#{operation_name}")
           return GraphqlModelMapper.get_constant(query_type_name) if GraphqlModelMapper.defined_constant?(query_type_name) 
@@ -98,7 +90,6 @@ module GraphqlModelMapper
                 name total_output_type_name
                 connection :items, -> {connection_type}, max_page_size: GraphqlModelMapper.max_page_size do 
                       resolve -> (obj, args, ctx) {
-                          #binding.pry
                           limit = GraphqlModelMapper.max_page_size
                           raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if args[:first].to_i > limit || args[:last].to_i > limit
                           obj

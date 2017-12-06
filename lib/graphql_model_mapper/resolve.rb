@@ -1,7 +1,6 @@
 module GraphqlModelMapper
   module Resolve
     def self.query_resolver(obj, args, ctx, name)
-        #binding.pry
         
         if obj && obj.class.name != name
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
@@ -60,11 +59,13 @@ module GraphqlModelMapper
           obj_context = obj_context.send(:with_deleted)
         end
 
-        implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
-        if !implied_includes.empty? 
-          obj_context = obj_context.includes(implied_includes)
-          if Rails.version.split(".").first.to_i > 3
-            obj_context = obj_context.references(implied_includes)
+        if select_args[:where] || select_args[:order]
+          implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
+          if !implied_includes.empty? 
+            obj_context = obj_context.includes(implied_includes)
+            if Rails.version.split(".").first.to_i > 3
+              obj_context = obj_context.references(implied_includes)
+            end
           end
         end
         if select_args[:id]
@@ -114,8 +115,8 @@ module GraphqlModelMapper
             
           end
           test_query = true
-        #else
-          #obj_context = obj_context.where("1=1")
+        else
+          obj_context = obj_context.where("1=1")
         end
         if scope_allowed
           obj_context = obj_context.send(select_args[:scope].to_sym)
@@ -343,7 +344,7 @@ module GraphqlModelMapper
       end
     
       def call(obj, args, ctx)
-          @resolve_func.call(obj, args, ctx)
+        @resolve_func.call(obj, args, ctx)
       end
     end
   end

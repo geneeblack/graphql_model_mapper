@@ -82,6 +82,7 @@ module GraphqlModelMapper
                 associations.sort_by(&:name).each do |reflection|
                     begin
                         klass = reflection.klass if !reflection.options[:polymorphic]
+                        next if !(klass.public_methods.include?(:graphql_delete) || klass.public_methods.include?(:graphql_create) || klass.public_methods.include?(:graphql_update))
                     rescue
                         GraphqlModelMapper.logger.info("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
                         next # most likely an invalid association without a class name, skip if other errors are encountered
@@ -148,6 +149,7 @@ module GraphqlModelMapper
                 associations.sort_by(&:name).each do |reflection|
                     begin
                         klass = reflection.klass if !reflection.options[:polymorphic]
+                        next if !klass.public_methods.include?(:graphql_query)
                     rescue
                         GraphqlModelMapper.logger.info("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
                         next # most likely an invalid association without a class name, skip if other errors are encountered
@@ -289,7 +291,9 @@ module GraphqlModelMapper
     
 
         def self.get_query_type(model_name, output_type)
-            GraphqlModelMapper::Query.get_query(model_name, "description", "Query", nil, [], [], output_type)
+            model = model_name.classify.constantize
+            model.graphql_query
+            #GraphqlModelMapper::Query.get_query(model_name, "description", "Query", nil, [], [], output_type)
         end
 
         def self.get_connection_type(model_name, output_type, root=false)
