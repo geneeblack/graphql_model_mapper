@@ -149,10 +149,10 @@ module GraphqlModelMapper
                 associations.sort_by(&:name).each do |reflection|
                     begin
                         klass = reflection.klass if !reflection.options[:polymorphic]
-                        next if !klass.public_methods.include?(:graphql_query)
+                        next if !reflection.options[:polymorphic] && klass && !klass.public_methods.include?(:graphql_query)
                     rescue
                         GraphqlModelMapper.logger.info("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
-                        next # most likely an invalid association without a class name, skip if other errors are encountered
+                        next # most likely an invalid association without a class name, skip it
                     end                    
                     if reflection.macro == :has_many
                         if [:deep].include?(GraphqlModelMapper.nesting_strategy)
@@ -180,7 +180,7 @@ module GraphqlModelMapper
                             custom_type_name = "#{name.classify}#{reflection.name.to_s.classify}Union"
                             if GraphqlModelMapper::CustomType.const_defined?(custom_type_name)
                                 field reflection.name.to_sym, -> {GraphqlModelMapper::CustomType.const_get(custom_type_name)} 
-                            elsif GraphqlModelMapper.scan_for_polymorphic_associations   
+                            elsif GraphqlModelMapper.scan_for_polymorphic_associations
                                 field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name)}, property: reflection.name.to_sym    
                             end 
                         else
@@ -229,7 +229,7 @@ module GraphqlModelMapper
     
 
         def self.get_polymorphic_type(reflection, model_name)
-            type_name = "#{model_name}#{reflection.name.to_s.classify}UnionOutput"
+            type_name = "#{model_name}#{reflection.name.to_s.classify}Union"
 
             return GraphqlModelMapper.get_constant(type_name) if GraphqlModelMapper.defined_constant?(type_name)
 
