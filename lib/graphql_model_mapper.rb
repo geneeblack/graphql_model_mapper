@@ -24,6 +24,8 @@ module GraphqlModelMapper
   mattr_accessor :handle_errors
   mattr_accessor :secret_token
   mattr_accessor :encrypted_items
+  mattr_accessor :use_graphql_field_restriction
+  mattr_accessor :use_graphql_object_restriction
   
   
 
@@ -39,8 +41,9 @@ module GraphqlModelMapper
   @@handle_errors = true
   @@secret_token = nil
   @@encrypted_items = true
+  @@use_graphql_object_restriction = false
+  @@use_graphql_field_restriction = true
   
-
   class << self
     attr_writer :logger
 

@@ -80,7 +80,7 @@ module GraphqlModelMapper
                   default_arguments.each do |k|
                     argument k[:name].to_sym, k[:type], k[:description], default_value: k[:default] do                  
                       if k[:authorization] && GraphqlModelMapper.use_authorize
-                        authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                        authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_field_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                         model_name name
                         access_type k[:authorization] 
                       end       

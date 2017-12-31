@@ -133,7 +133,7 @@ module GraphqlModelMapper
         GraphqlModelMapper.schema_queries.each do |f|
           field f[:name], f[:field]  do
             if GraphqlModelMapper.use_authorize
-              authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+              authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_field_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true }
               model_name f[:model_name]
               access_type f[:access_type].to_s
             end
@@ -155,7 +155,7 @@ module GraphqlModelMapper
         GraphqlModelMapper.schema_mutations.each do |f|
           field f[:name], f[:field]  do
             if GraphqlModelMapper.use_authorize
-              authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+              authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_field_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true }
               model_name  f[:model_name]
               access_type f[:access_type].to_s
             end
@@ -228,6 +228,7 @@ module GraphqlModelMapper
     value("lessThanOrEqualTo", "less than or equal to")
     value("greaterThanOrEqualTo", "greater than or equal to")
     value("contains", "contains")
+    value("notContain", "contains")
     value("isNull", "is null")
     value("notNull", "is not null")
   end

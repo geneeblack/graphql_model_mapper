@@ -4,7 +4,8 @@ module GraphqlModelMapper
             description: "",
             resolver: nil,
             arguments: [],
-            scope_methods: []
+            scope_methods: [],
+            root_query: false
           )
           resolver = resolver || -> (obj, args, ctx) {              
             items = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, name)
@@ -117,13 +118,7 @@ module GraphqlModelMapper
               name query_type_name
               type total_output_type
               default_arguments.each do |k|
-                argument k[:name].to_sym, k[:type], k[:description], default_value: k[:default] do                  
-                  if k[:authorization] && GraphqlModelMapper.use_authorize
-                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
-                    model_name name
-                    access_type k[:authorization] 
-                  end       
-                end
+                argument k[:name].to_sym, k[:type], k[:description], default_value: k[:default]
               end
               resolve GraphqlModelMapper::Query.get_resolver(resolver, model)
           end

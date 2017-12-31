@@ -147,7 +147,7 @@ module GraphqlModelMapper
                     if reflection.macro == :has_many
                         argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)} do
                             if GraphqlModelMapper.use_authorize
-                                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true }
                                 model_name klass.name
                                 access_type :read
                             end
@@ -160,7 +160,7 @@ module GraphqlModelMapper
                         else
                             argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)} do
                                 if GraphqlModelMapper.use_authorize
-                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                                     model_name klass.name
                                     access_type :read
                                 end
@@ -191,7 +191,7 @@ module GraphqlModelMapper
                     if reflection.macro == :has_many
                         argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key).to_list_type} do
                             if GraphqlModelMapper.use_authorize
-                                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                                 model_name klass.name
                                 access_type :read
                             end
@@ -204,7 +204,7 @@ module GraphqlModelMapper
                         else
                             argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)} do
                                 if GraphqlModelMapper.use_authorize
-                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                                     model_name klass.name
                                     access_type :read
                                 end
@@ -242,7 +242,7 @@ module GraphqlModelMapper
                 #ensure type name is unique  so it does not collide with known types
                 name typename
                 model_name name
-                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                 access_type :read.to_s
  
                 description "an output interface for the #{name} ActiveRecord model"
@@ -260,7 +260,7 @@ module GraphqlModelMapper
                             #connection reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_connection_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym, max_page_size: GraphqlModelMapper.max_page_size do
                             field reflection.name.to_sym, GraphqlModelMapper::MapperType.get_query_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)) do
                                 if GraphqlModelMapper.use_authorize
-                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                                     model_name klass.name
                                     access_type :read.to_s
                                 end
@@ -269,7 +269,7 @@ module GraphqlModelMapper
                             #field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_list_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key))}, property: reflection.name.to_sym do
                             field reflection.name.to_sym, GraphqlModelMapper::MapperType.get_query_type(klass.name, GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)) do
                                     if GraphqlModelMapper.use_authorize
-                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                    authorized ->(ctx, model_name, access_type) {GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                                     model_name klass.name
                                     access_type :read.to_s
                                 end
@@ -280,14 +280,35 @@ module GraphqlModelMapper
                             # if a union type is defined in custom types use it, otherwise generate a union type from the association definition (requires a table scan)
                             custom_type_name = "#{name.classify}#{reflection.name.to_s.classify}Union"
                             if GraphqlModelMapper::CustomType.const_defined?(custom_type_name)
-                                field reflection.name.to_sym, -> {GraphqlModelMapper::CustomType.const_get(custom_type_name)} 
+                                field reflection.name.to_sym, -> {GraphqlModelMapper::CustomType.const_get(custom_type_name)} do
+                                    resolve -> (obj, args, ctx) {
+                                        if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
+                                            select_args = {}
+                                            select_args[:full_filter] = ctx[:root_args][:full_filter].to_h.with_indifferent_access[ctx.ast_node.name.to_sym]
+                                            ctx[:root_args] = select_args                                
+                                        end
+                                        obj
+                                    }
+                                end 
                             elsif GraphqlModelMapper.scan_for_polymorphic_associations
-                                field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name)}, property: reflection.name.to_sym    
+                                field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name)}, property: reflection.name.to_sym do
+                                end    
                             end 
                         else
                             field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)}, property: reflection.name.to_sym do
-                                if GraphqlModelMapper.use_authorize
-                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                resolve -> (obj, args, ctx) {
+                                    binding.pry
+                                    if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
+                                        select_args = {}
+                                        select_args[:full_filter] = ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
+                                        ctx[:root_args] = select_args                                
+                                    end
+                                    obj.send(ctx.ast_node.name.to_sym)
+                            }
+                            if GraphqlModelMapper.use_authorize
+                                    authorized ->(ctx, model_name, access_type) {  
+                                        GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  
+                                    }
                                     model_name klass.name
                                     access_type :read.to_s
                                 end
@@ -369,7 +390,7 @@ module GraphqlModelMapper
                       end
                 }
                 if GraphqlModelMapper.use_authorize
-                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                    authorized ->(ctx, model_name, access_type) {  GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
                     model_name model_name
                     access_type :read
                 end

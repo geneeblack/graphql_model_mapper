@@ -10,15 +10,15 @@ module GraphqlModelMapper
           obj_context = obj.send(reflection.name)
           select_args = args[:select] || args
           select_args = select_args.to_h.with_indifferent_access
-          #binding.pry
-          if ctx[:root_args][:full_filter][reflection.name.to_sym]
-            select_args[:full_filter] = ctx[:root_args][:full_filter][reflection.name.to_sym].to_h.with_indifferent_access.deep_merge(args[:full_filter].to_h.with_indifferent_access) 
-            ctx[:root_args] = select_args
+          binding.pry
+          if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][reflection.name.to_sym]
+            select_args[:full_filter] = ctx[:root_args][:full_filter][reflection.name.to_sym].to_h.with_indifferent_access.deep_merge(select_args[:full_filter].to_h.with_indifferent_access) 
           end
+          ctx[:root_args] = select_args
         else
           obj_context = name.classify.constantize
           select_args = args[:select] || args
-          #binding.pry
+          binding.pry
           ctx[:root_args] = select_args
           select_args = select_args.to_h.with_indifferent_access
           model = obj_context
@@ -30,7 +30,7 @@ module GraphqlModelMapper
           
 
     
-        if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query)
+        if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query) && GraphqlModelMapper.use_graphql_object_restriction
           raise GraphQL::ExecutionError.new("error: unauthorized access: #{:query} '#{obj_context.class_name.classify}'")
         end
         classmethods = []
@@ -81,7 +81,7 @@ module GraphqlModelMapper
             implied_includes = implied_includes.merge(test)
           end
           if !implied_includes.empty? 
-            obj_context = obj_context.joins(implied_includes)
+            obj_context = obj_context.includes(implied_includes)
             ##binding.pry
             if Rails.version.split(".").first.to_i > 3
               obj_context = obj_context.references(implied_includes)
@@ -195,7 +195,7 @@ module GraphqlModelMapper
         model = model_name.classify.constantize
         items = self.query_resolver(obj, inputs, ctx, model_name)
         ids = items.collect(&:id)
-        if !GraphqlModelMapper.authorized?(ctx, model_name, :update)
+        if !GraphqlModelMapper.authorized?(ctx, model_name, :update) && GraphqlModelMapper.use_graphql_object_restriction
             raise GraphQL::ExecutionError.new("error: unauthorized access: delete '#{model_name.classify}', transaction cancelled")
         end    
         begin
@@ -212,7 +212,7 @@ module GraphqlModelMapper
 
     def self.create_resolver(obj, inputs, ctx, model_name)
         if !GraphqlModelMapper.authorized?(ctx, model_name, :create)
-            raise GraphQL::ExecutionError.new("error: unauthorized access: create '#{model_name.classify}'")
+            raise GraphQL::ExecutionError.new("error: unauthorized access: create '#{model_name.classify}'") && GraphqlModelMapper.use_graphql_object_restriction
         end
         model = model_name.classify.constantize   
         item = model.new(inputs[model_name.downcase].to_h)
@@ -336,7 +336,7 @@ module GraphqlModelMapper
         end
         raise GraphQL::ExecutionError.new("error: #{model.name} record not found for #{model.name}.id=#{inputs[model_name.downcase][:item_id]}") if item.nil?
       end
-      if !GraphqlModelMapper.authorized?(ctx, model.name, :update)
+      if !GraphqlModelMapper.authorized?(ctx, model.name, :update) && GraphqlModelMapper.use_graphql_object_restriction
         raise GraphQL::ExecutionError.new("error: unauthorized access: #{:update} '#{model}', transaction cancelled")
       end
   
@@ -411,10 +411,11 @@ module GraphqlModelMapper
             scope = self.get_compare(scope, "#{parent.pluralize}_#{parent_parent.pluralize}.#{key}", value[key]["compare"],  value[key]["value"])
           else
             @aliases << reflection_parent
-            scope = self.get_compare(scope, "#{reflection_parent}.#{key}", value[key]["compare"],  value[key]["value"])
+            scope = self.get_compare(scope, "#{reflection_parent.pluralize}.#{key}", value[key]["compare"],  value[key]["value"])
           end
         else
           table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
+          binding.pry
           @aliases << table_reference
           scope = self.apply_full_filter(scope, value[key], key, parent)
         end
