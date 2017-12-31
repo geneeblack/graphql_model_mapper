@@ -129,6 +129,7 @@ module GraphqlModelMapper
           description "Fetches a list of objects given a list of globally unique IDs"
         end
 
+
         GraphqlModelMapper.schema_queries.each do |f|
           field f[:name], f[:field]  do
             if GraphqlModelMapper.use_authorize
@@ -138,6 +139,9 @@ module GraphqlModelMapper
             end
           end   
         end
+
+        #field :jobSearch, function: -> { GraphqlModelMapper::Resolve.get_model_search2("Job") }
+
       end
     end
 
@@ -207,6 +211,128 @@ module GraphqlModelMapper
     end 
   end
 
+  GraphqlModelMapper::SortOrderEnum = GraphQL::EnumType.define do
+    name "SortOrderEnum"
+    description "allows selection of ascending descending"
+    value("ascending", "asc", value: "ASC")
+    value("descending", "desc", value: "DESC")
+  end
+
+  GraphqlModelMapper::StringCompareEnum = GraphQL::EnumType.define do
+    name "StringCompareEnum"
+    description "String comparison operators"
+    value("lessThan", "less than")
+    value("greaterThan", "greater than")
+    value("equalTo", "equal to")
+    value("notEqualTo", "not equal to")
+    value("lessThanOrEqualTo", "less than or equal to")
+    value("greaterThanOrEqualTo", "greater than or equal to")
+    value("contains", "contains")
+    value("isNull", "is null")
+    value("notNull", "is not null")
+  end
+
+  GraphqlModelMapper::BooleanCompareEnum = GraphQL::EnumType.define do
+    name "BooleanCompareEnum"
+    description "String comparison operators"
+    value("TRUE")
+    value("FALSE")
+  end
+
+  GraphqlModelMapper::IntCompareEnum = GraphQL::EnumType.define do
+    name "IntCompareEnum"
+    description "String comparison operators"
+    value("lessThan", "less than")
+    value("greaterThan", "greater than")
+    value("equalTo", "equal to")
+    value("notEqualTo", "not equal to")
+    value("lessThanOrEqualTo", "less than or equal to")
+    value("greaterThanOrEqualTo", "greater than or equal to")
+  end
+
+  GraphqlModelMapper::DateCompareEnum = GraphQL::EnumType.define do
+    name "DateCompareEnum"
+    description "String comparison operators"
+    value("lessThan", "less than")
+    value("greaterThan", "greater than")
+    value("equalTo", "equal to")
+    value("notEqualTo", "not equal to")
+    value("lessThanOrEqualTo", "less than or equal to")
+    value("greaterThanOrEqualTo", "greater than or equal to")
+  end
+
+  GraphqlModelMapper::FloatCompareEnum = GraphQL::EnumType.define do
+    name "FloatCompareEnum"
+    description "String comparison operators"
+    value("lessThan", "less than")
+    value("greaterThan", "greater than")
+    value("equalTo", "equal to")
+    value("notEqualTo", "not equal to")
+    value("lessThanOrEqualTo", "less than or equal to")
+    value("greaterThanOrEqualTo", "greater than or equal to")
+  end
+
+  GraphqlModelMapper::GeometryObjectCompareEnum = GraphQL::EnumType.define do
+    name "GeometryObjectCompareEnum"
+    description "String comparison operators"
+    value("lessThan", "less than")
+    value("greaterThan", "greater than")
+    value("equalTo", "equal to")
+    value("notEqualTo", "not equal to")
+    value("lessThanOrEqualTo", "less than or equal to")
+    value("greaterThanOrEqualTo", "greater than or equal to")
+  end
+
+  GraphqlModelMapper::GeometryStringCompareEnum = GraphQL::EnumType.define do
+    name "GeometryStringCompareEnum"
+    description "String comparison operators"
+    value("lessThan", "less than")
+    value("greaterThan", "greater than")
+    value("equalTo", "equal to")
+    value("notEqualTo", "not equal to")
+    value("lessThanOrEqualTo", "less than or equal to")
+    value("greaterThanOrEqualTo", "greater than or equal to")
+  end
+
+  GraphqlModelMapper::StringCompare = GraphQL::InputObjectType.define do
+    name "StringCompare"
+    argument :compare, GraphqlModelMapper::StringCompareEnum
+    argument :value, GraphQL::STRING_TYPE
+  end
+  GraphqlModelMapper::IntCompare = GraphQL::InputObjectType.define do
+    name "IntCompare"
+    argument :compare, GraphqlModelMapper::IntCompareEnum
+    argument :value, GraphQL::INT_TYPE
+  end
+  GraphqlModelMapper::FloatCompare = GraphQL::InputObjectType.define do
+    name "FloatCompare"
+    argument :compare, GraphqlModelMapper::FloatCompareEnum
+    argument :value, GraphQL::FLOAT_TYPE
+  end
+  GraphqlModelMapper::BooleanCompare = GraphQL::InputObjectType.define do
+    name "BooleanCompare"
+    argument :compare, GraphqlModelMapper::BooleanCompareEnum
+    argument :value, GraphQL::BOOLEAN_TYPE
+  end
+  GraphqlModelMapper::DateCompare = GraphQL::InputObjectType.define do
+    name "DateCompare"
+    argument :compare, GraphqlModelMapper::DateCompareEnum
+    argument :value, GraphqlModelMapper::DATE_TYPE
+  end
+  GraphqlModelMapper::GeometryObjectCompare = GraphQL::InputObjectType.define do
+    name "GeometryObjectCompare"
+    argument :compare, GraphqlModelMapper::GeometryObjectCompareEnum
+    argument :value, GraphqlModelMapper::GEOMETRY_STRING_TYPE
+  end
+  GraphqlModelMapper::GeometryStringCompare = GraphQL::InputObjectType.define do
+    name "GeometryStringCompare"
+    argument :compare, GraphqlModelMapper::GeometryStringCompareEnum
+    argument :value, GraphqlModelMapper::GEOMETRY_OBJECT_TYPE
+  end
+
+  
+
+  
   GraphqlModelMapper::GEOMETRY_OBJECT_TYPE = GraphQL::ScalarType.define do
     name "GeometryObject"
     description "The Geometry scalar type enables the serialization of Geometry data"
@@ -217,7 +343,7 @@ module GraphqlModelMapper
             if value.nil? 
               nil 
             elsif !defined?(GeoRuby::GeojsonParser).nil?
-              GeoRuby::SimpleFeatures::Geometry.from_geojson(value) 
+              GeoRuby::SimpleFeatures::Geometry.from_geojson(value)
             elsif !defined?(RGeo::GeoJSON).nil?
               RGeo::GeoJSON.decode(value, json_parser: :json)
             else 
@@ -229,6 +355,7 @@ module GraphqlModelMapper
     end
     coerce_result ->(value, ctx) { (value.nil? ? "" : (defined?(GeoRuby) == "constant" && value.kind_of?(GeoRuby::SimpleFeatures::Geometry) ? value.to_json : (defined?(RGeo) == "constant" && defined?(RGeo::GeoJSON) == "constant" && RGeo::Geos.is_capi_geos?(value) ? RGeo::GeoJSON.encode(value).to_json : value))) }
   end
+
   
   GraphqlModelMapper::GEOMETRY_STRING_TYPE = GraphQL::ScalarType.define do
     name "GeometryString"

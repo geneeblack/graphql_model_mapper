@@ -34,8 +34,8 @@ module GraphqlModelMapper
             required_attributes: [], 
             excluded_attributes: [], 
             allowed_attributes: [],
-            foreign_keys: false, 
-            primary_keys: false, 
+            foreign_keys: true, 
+            primary_keys: true, 
             validation_keys: false, 
             association_macro: nil, 
             source_nulls: true,
@@ -74,6 +74,107 @@ module GraphqlModelMapper
             enums = (Rails.version.split(".").first.to_i >= 4 && Rails.version.split(".").second.to_i >= 1) || (Rails.version.split(".").first.to_i >= 5) ? model.defined_enums.keys : [] 
             enum_values = (Rails.version.split(".").first.to_i >= 4 && Rails.version.split(".").second.to_i >= 1) || (Rails.version.split(".").first.to_i >= 5) ? model.defined_enums : [] 
             
+
+            begin 
+                property_enum_type_name = "#{GraphqlModelMapper.get_type_name(name)}PropertyEnum"
+                if GraphqlModelMapper.defined_constant?(property_enum_type_name)
+                    property_enum_type = GraphqlModelMapper.get_constant(property_enum_type_name)
+                else
+                    property_enum_type = GraphQL::EnumType.define do                    
+                        #ensure type name is unique  so it does not collide with known types
+                        name  property_enum_type_name
+                        description "a property enum interface for the #{name} ActiveRecord model"
+                        db_fields.sort.each  do |f|
+                            value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean].include?(columns[f.to_s].type)
+                        end
+                    end
+                    GraphqlModelMapper.set_constant(property_enum_type_name, property_enum_type)
+                end
+                model_filter = GraphQL::InputObjectType.define do
+                    name typename
+                
+                    argument :column, property_enum_type
+                    argument :direction, GraphqlModelMapper::SortOrderEnum
+                end
+                
+                
+                ret_type = model_filter
+            end if type_sub_key == :order_type
+
+            begin 
+
+                property_enum_type_name = "#{GraphqlModelMapper.get_type_name(name)}PropertyEnum"
+                if GraphqlModelMapper.defined_constant?(property_enum_type_name)
+                    property_enum_type = GraphqlModelMapper.get_constant(property_enum_type_name)
+                else
+                    property_enum_type = GraphQL::EnumType.define do                    
+                        #ensure type name is unique  so it does not collide with known types
+                        name  property_enum_type_name
+                        description "a property enum interface for the #{name} ActiveRecord model"
+                        db_fields.sort.each  do |f|
+                            value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean].include?(columns[f.to_s].type)
+                        end
+                    end
+                    GraphqlModelMapper.set_constant(property_enum_type_name, property_enum_type)
+                end
+
+                model_filter = GraphQL::InputObjectType.define do
+                    name typename
+                
+                    argument :OR, -> { model_filter }
+                    argument :column, property_enum_type
+                    argument :compare, GraphqlModelMapper::StringCompareEnum
+                    argument :value, types.String #types.String || types.Number || types.GeometryObject || types.float
+                end
+
+
+                ret_type = model_filter
+            end if type_sub_key == :search_type
+
+            ret_type = GraphQL::InputObjectType.define do
+                #ensure type name is unique  so it does not collide with known types
+                name typename
+                description "an input interface for the #{name} ActiveRecord model"
+                # create GraphQL fields for each association
+                associations.sort_by(&:name).each do |reflection|
+                    begin
+                        klass = reflection.klass if !reflection.options[:polymorphic]
+                        next if !(klass.public_methods.include?(:graphql_delete) || klass.public_methods.include?(:graphql_create) || klass.public_methods.include?(:graphql_update))
+                    rescue
+                        GraphqlModelMapper.logger.info("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
+                        next # most likely an invalid association without a class name, skip if other errors are encountered
+                    end                    
+                    if reflection.macro == :has_many
+                        argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)} do
+                            if GraphqlModelMapper.use_authorize
+                                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                model_name klass.name
+                                access_type :read
+                            end
+                        end   
+                    else
+                        if reflection.options[:polymorphic] #not currently supported as an input type
+                            #if GraphqlModelMapper.scan_for_polymorphic_associations
+                            #    argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name, type_sub_key: type_sub_key)}    
+                            #end
+                        else
+                            argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)} do
+                                if GraphqlModelMapper.use_authorize
+                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) }
+                                    model_name klass.name
+                                    access_type :read
+                                end
+                            end 
+                        end 
+                    end                
+                end
+        
+                db_fields.sort.each do |f|
+                    argument f.to_sym, -> {GraphqlModelMapper::MapperType.convert_compare_type(columns[f.to_s].type, columns[f.to_s].sql_type, true)} #{GraphqlModelMapper::StringCompare}
+                end
+            end  if type_sub_key == :search_type_full
+                            
+
             ret_type = GraphQL::InputObjectType.define do
                 #ensure type name is unique  so it does not collide with known types
                 name typename
@@ -120,7 +221,7 @@ module GraphqlModelMapper
                 argument :id, GraphQL::ID_TYPE       
                 # force required_attributes to be non-null
                 db_fields.select{|s| required_attributes.include?(s)}.each do |f|
-                    argument f.to_sym, -> {GraphqlModelMapper.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, false)}
+                    argument f.to_sym, -> {GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, false)}
                 end       
                 #get the rest of the fields that are not primary keys or required fields
                 db_fields.reject{|s| (s.to_sym == :id) || required_attributes.include?(s)}.sort.each do |f|
@@ -222,6 +323,14 @@ module GraphqlModelMapper
                         end
                     end
                 end
+
+                field :model_url, types.String do
+                    description 'web show url'
+                    resolve -> (obj, args, ctx) {
+                        #binding.pry 
+                        [obj.class.name.downcase, obj.id].join("-")
+                    }
+                end
             end if type_sub_key == :output_type
             GraphqlModelMapper.set_constant(typename, ret_type) if !GraphqlModelMapper.defined_constant?(typename)
             ret_type
@@ -321,7 +430,7 @@ module GraphqlModelMapper
                             }
                         end
                     end
-                    field :total, hash_key: :total do
+                    field :totalCount, hash_key: :total do
                         type GraphQL::INT_TYPE
                         resolve ->(obj, args, ctx) {
                             #binding.pry
@@ -350,7 +459,7 @@ module GraphqlModelMapper
                             GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx) 
                         }
                     end
-                    field :total, -> {GraphQL::INT_TYPE}, hash_key: :total do 
+                    field :totalCount, -> {GraphQL::INT_TYPE}, hash_key: :total do 
                         resolve->(obj,args, ctx){
                             obj.count
                         }
@@ -390,7 +499,7 @@ module GraphqlModelMapper
             if args[:per_page]
                 per_page = args[:per_page].to_i
                 raise GraphQL::ExecutionError.new("per_page must be greater than 0") if per_page < 1
-                #raise GraphQL::ExecutionError.new("you requested more items than the maximum page size #{limit}, please reduce your requested per_page entry") if per_page > limit
+                raise GraphQL::ExecutionError.new("you requested more items than the maximum page size #{limit}, please reduce your requested per_page entry") if per_page > limit
                 limit = [per_page,limit].min
             end
             if args[:page]
@@ -400,8 +509,8 @@ module GraphqlModelMapper
                 #raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the maximum number of pages #{max_page}") if page > max_page
                 obj = obj.offset((page-1)*limit)
             end
-            obj = obj.limit(limit)
             #binding.pry
+            obj = obj.limit(limit)
             obj
         end
 
@@ -457,6 +566,35 @@ module GraphqlModelMapper
             GraphqlModelMapper.set_constant(type_name, ret_type)
             GraphqlModelMapper.get_constant(type_name)
         end
+
+
+        def self.convert_compare_type db_type, db_sql_type="", nullable=true
+            # because we are outside of a GraphQL define block we cannot use the types helper
+            # we must refer directly to the built-in GraphQL scalar types
+            case db_type
+            when :integer
+                nullable ? GraphqlModelMapper::IntCompare : !GraphqlModelMapper::IntCompare
+            when :decimal, :float
+                nullable ? GraphqlModelMapper::FloatCompare : !GraphqlModelMapper::FloatCompare
+            when :boolean
+                nullable ? GraphqlModelMapper::BooleanCompare : !GraphqlModelMapper::BooleanCompare
+            when :date, :datetime
+                nullable ? GraphqlModelMapper::DateCompare : !GraphqlModelMapper::DateCompare
+            else
+                case db_sql_type.to_sym #these are strings not symbols
+                when :geometry, :multipolygon, :polygon
+                    case db_type
+                        when :string
+                            nullable ? GraphqlModelMapper::GeometryObjectCompare : !GraphqlModelMapper::GeometryObjectCompare
+                        else
+                            nullable ? GraphqlModelMapper::GeometryStringCompare : !GraphqlModelMapper::GeometryStringCompare
+                    end
+                else
+                    nullable ? GraphqlModelMapper::StringCompare : !GraphqlModelMapper::StringCompare
+                end
+            end
+        end
+
         # convert a database type to a GraphQL type
         # @param db_type [Symbol] the type returned by columns_hash[column_name].type
         # @param db_sql_type [String] the sql_type returned by columns_hash[column_name].sql_type
@@ -487,5 +625,33 @@ module GraphqlModelMapper
                 end
             end
         end
+
+        def self.get_compare_type db_type, db_sql_type="", nullable=true
+            # because we are outside of a GraphQL define block we cannot use the types helper
+            # we must refer directly to the built-in GraphQL scalar types
+            case db_type
+            when :integer
+                nullable ? GraphQL::INT_TYPE : !GraphQL::INT_TYPE
+            when :decimal, :float
+                nullable ? GraphQL::FLOAT_TYPE : !GraphQL::FLOAT_TYPE
+            when :boolean
+                nullable ? GraphQL::BOOLEAN_TYPE : !GraphQL::BOOLEAN_TYPE
+            when :date, :datetime
+                nullable ? GraphqlModelMapper::DATE_TYPE : !GraphqlModelMapper::DATE_TYPE
+            else
+                case db_sql_type.to_sym #these are strings not symbols
+                when :geometry, :multipolygon, :polygon
+                    case db_type
+                        when :string
+                            nullable ? GraphqlModelMapper::GEOMETRY_OBJECT_TYPE : !GraphqlModelMapper::GEOMETRY_OBJECT_TYPE
+                        else
+                            nullable ? GraphqlModelMapper::GEOMETRY_STRING_TYPE : !GraphqlModelMapper::GEOMETRY_STRING_TYPE
+                    end
+                else
+                    nullable ? GraphQL::STRING_TYPE : !GraphQL::STRING_TYPE
+                end
+            end
+        end
+
     end
 end    

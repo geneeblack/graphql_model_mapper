@@ -83,6 +83,10 @@ GEM
     rake (12.2.1)
     rdoc (3.12.2)
       json (~> 1.4)
+    search_object (1.2.0)
+    search_object_graphql (0.1)
+      graphql (~> 1.5)
+      search_object (~> 1.2)
     sprockets (2.2.3)
       hike (~> 1.2)
       multi_json (~> 1.0)
@@ -109,6 +113,8 @@ DEPENDENCIES
   minitest (~> 5.0)
   rails (~> 3.2.22.5)
   rake
+  search_object (= 1.2.0)
+  search_object_graphql (= 0.1)
 
 BUNDLED WITH
    1.16.0

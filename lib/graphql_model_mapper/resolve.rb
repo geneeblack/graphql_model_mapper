@@ -1,3 +1,5 @@
+require 'search_object/plugin/graphql'
+
 module GraphqlModelMapper
   module Resolve
     def self.query_resolver(obj, args, ctx, name)
@@ -6,14 +8,25 @@ module GraphqlModelMapper
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
           model = reflection.klass
           obj_context = obj.send(reflection.name)
+          select_args = args[:select] || args
+          select_args = select_args.to_h.with_indifferent_access
+          #binding.pry
+          if ctx[:root_args][:full_filter][reflection.name.to_sym]
+            select_args[:full_filter] = ctx[:root_args][:full_filter][reflection.name.to_sym].to_h.with_indifferent_access.deep_merge(args[:full_filter].to_h.with_indifferent_access) 
+            ctx[:root_args] = select_args
+          end
         else
           obj_context = name.classify.constantize
+          select_args = args[:select] || args
+          #binding.pry
+          ctx[:root_args] = select_args
+          select_args = select_args.to_h.with_indifferent_access
           model = obj_context
         end
+        
 
-        select_args = args[:select] || args
-
-#        return obj if select_args.empty?
+        # return obj_context if select_args.empty?
+        #return obj_context if select_args.keys.select{|m| !select_args[m].nil?}.length == 0 
           
 
     
@@ -24,6 +37,7 @@ module GraphqlModelMapper
         scope_allowed = false
         with_deleted_allowed = false
         test_query = false
+
 
         if select_args[:scopes]
           input_scopes = select_args[:scopes]
@@ -59,10 +73,16 @@ module GraphqlModelMapper
           obj_context = obj_context.send(:with_deleted)
         end
 
-        if select_args[:where] || select_args[:order]
+        implied_includes = ""
+        if select_args[:where] || select_args[:order] || select_args[:short_filter] || select_args[:full_filter]
           implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
+          if select_args[:full_filter]
+            test = self.get_filter_implied_includes(select_args[:full_filter].to_h, parent={})
+            implied_includes = implied_includes.merge(test)
+          end
           if !implied_includes.empty? 
-            obj_context = obj_context.includes(implied_includes)
+            obj_context = obj_context.joins(implied_includes)
+            ##binding.pry
             if Rails.version.split(".").first.to_i > 3
               obj_context = obj_context.references(implied_includes)
             end
@@ -118,6 +138,16 @@ module GraphqlModelMapper
         else
           obj_context = obj_context.where("1=1")
         end
+        if select_args[:short_filter]
+          obj_context = self.apply_short_filter(obj_context, select_args[:short_filter])
+        end
+        if select_args[:full_filter]
+          #binding.pry
+
+          @aliases = ctx[:table_aliases] = []
+          obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h.deep_merge(implied_includes), model.name.pluralize.downcase) #.to_h.merge(implied_includes)
+        end
+
         if scope_allowed
           obj_context = obj_context.send(select_args[:scope].to_sym)
         end
@@ -140,11 +170,19 @@ module GraphqlModelMapper
         if select_args[:explain]
           obj_context = obj_context.limit(1)
           obj_context = obj_context.eager_load(implied_includes)
-          raise GraphQL::ExecutionError.new(obj_context.explain.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : "").sub(" AND (1=1)","").sub(" WHERE (1=1)",""))
+          err = nil
+          begin
+            #err = GraphQL::ExecutionError.new(obj_context.explain.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : "").sub(" AND (1=1)","").sub(" WHERE (1=1)",""))
+            err = GraphQL::ExecutionError.new(obj_context.explain.split("EXPLAIN for:").last.split("\n").first.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : "").sub(" AND (1=1)","").sub(" WHERE (1=1)",""))
+          rescue 
+            err =  GraphQL::ExecutionError.new(obj_context.to_sql.sub("EXPLAIN for: ", "").sub(" LIMIT 1", !select_args[:limit].nil? && select_args[:limit].to_f > 0 ? "LIMIT #{select_args[:limit]}" : "").sub(" AND (1=1)","").sub(" WHERE (1=1)",""))
+          end
+          raise err if !err.nil?
         end
         #if select_args[:limit].nil?
         #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
         #end
+        ##binding.pry
         obj_context
     end
 
@@ -219,6 +257,7 @@ module GraphqlModelMapper
       end
     end
 
+    
     def self.get_implied_includes(class_name, ast_node, dependencies={})
       ast_node.selections.each do |selection|
         name = selection.name
@@ -336,6 +375,100 @@ module GraphqlModelMapper
         end
       end
       item
+    end
+
+    def self.get_filter_implied_includes(value, parent={})
+      ##binding.pry
+      result = {}
+      value.keys.each do |key|
+        if !value[key].keys.include?("compare")
+          target = self.get_filter_implied_includes(value[key], key)
+          if target.empty?
+            result[key] = {}
+          else
+            result[key] =  target 
+          end
+        end
+      end
+      result
+    end
+    
+    @aliases=[]
+    def self.apply_full_filter_with_aliases(scope, value, parent, parent_parent="")
+      self.apply_full_filter(scope, value, parent, parent_parent="")
+    end
+
+    def self.apply_full_filter(scope, value, parent, parent_parent="")
+      ##binding.pry
+      ##{reflection_name}_#{parent_table_name}
+      value.keys.map(&:to_s).uniq.sort.each do |key|
+        if value[key] && value[key].keys.include?("compare")
+          reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : nil
+          reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : nil
+          reflection_parent = reflection_parent || parent || scope.table_name
+          #binding.pry
+          if !parent_parent.empty? && @aliases.include?(reflection_parent) && @aliases.count(reflection_parent) > 1           
+            scope = self.get_compare(scope, "#{parent.pluralize}_#{parent_parent.pluralize}.#{key}", value[key]["compare"],  value[key]["value"])
+          else
+            @aliases << reflection_parent
+            scope = self.get_compare(scope, "#{reflection_parent}.#{key}", value[key]["compare"],  value[key]["value"])
+          end
+        else
+          table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
+          @aliases << table_reference
+          scope = self.apply_full_filter(scope, value[key], key, parent)
+        end
+      end if value.public_methods.include?(:keys)
+      scope
+    end
+    
+
+    def self.apply_short_filter(scope, value)
+      # normalize filters from nested OR structure, to flat scope list
+      branches = self.normalize_filters(scope, value).reduce { |a, b| b || a }
+      scope = scope.merge branches
+      scope = scope.limit(20)
+    end
+
+    def self.get_compare(scope, column, compare, value)
+      out = "#{column}"
+      out = out + (compare == "greaterThan" ? " > ?" : "")
+      out = out + (compare == "lessThan" ? " < ?" : "")
+      out = out + (compare == "equalTo" ? " = ?" : "")
+      out = out + (compare == "notEqualTo" ? " != ?" : "")
+      out = out + (compare == "lessThanOrEqualTo" ? " <= ?" : "")
+      out = out + (compare == "greaterThanOrEqualTo" ? " >= ?" : "")
+      out = out + (compare == "contains" ? " like ?" : "")
+      out = out + (compare == "isNull" ? " is null" : "")
+      out = out + (compare == "notNull" ? " is not null" : "")
+      
+      value = (compare == "contains" ? "%#{value}%" : value) 
+
+      value = (["isNull", "notNull"].include?(compare) ? "" : value)
+
+      ##binding.pry
+  
+      #include_table = column.split(".")[0].singularize.classify
+      
+      #if include_table != scope.name
+        #scope.includes(include_table)
+      #end
+      puts [out, value]
+      scope.where([out, value])
+    end
+
+    def self.normalize_filters(scope, value, branches = [])
+      # add like SQL conditions
+      value.each do |val|
+        scope = get_compare(scope, val["column"], val["compare"], val["value"])
+        branches << scope
+        
+        # continue to normalize down
+        val['OR'].reduce(branches) { |s, v| self.normalize_filters(v, s) } if val['OR'].present?
+      end
+
+
+      branches
     end
     
     class ResolveWrapper

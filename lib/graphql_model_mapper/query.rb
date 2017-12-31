@@ -33,6 +33,12 @@ module GraphqlModelMapper
               {:name=>:where, :type=>GraphQL::STRING_TYPE.to_list_type, :default=>nil, :authorization=>:manage }
             ]
 
+            default_arguments = default_arguments + [
+              {:name=>:short_filter, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :search_type).to_list_type}},
+              {:name=>:full_filter, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :search_type_full)}},
+              {:name=>:order_by, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :order_type).to_list_type}}
+            ]
+
             scope_methods = scope_methods.map(&:to_sym)                        
             if (model.public_methods - model.instance_methods - Object.methods - ActiveRecord::Base.methods).include?(:with_deleted)
               default_arguments << {:name=>:with_deleted, :type=>GraphQL::BOOLEAN_TYPE, :default=>false, :authorization=>:manage}
@@ -92,9 +98,10 @@ module GraphqlModelMapper
                 name total_output_type_name
                 connection :items, -> { GraphqlModelMapper::MapperType.get_connection_type(name, output_type, false) }, max_page_size: GraphqlModelMapper.max_page_size do 
                       resolve -> (obj, args, ctx) {
-                          limit = GraphqlModelMapper.max_page_size
-                          raise GraphQL::ExecutionError.new("you have exceeded the maximum requested page size #{limit}") if args[:first].to_i > limit || args[:last].to_i > limit
-                          obj
+#                        binding.pry
+                        limit = GraphqlModelMapper.max_page_size
+                        raise GraphQL::ExecutionError.new("you have requested more items than the maximum page size #{limit}") if obj.length > limit && (args[:first].to_i > limit || args[:last].to_i > limit)
+                        obj
                       }
                   end
               end

@@ -1,11 +1,11 @@
 require "graphql"
+require "graphql_model_mapper/utility"
 require "graphql_model_mapper/mapper_type"
 require "graphql_model_mapper/custom_type"
 require "graphql_model_mapper/mutation"
 require "graphql_model_mapper/query"
 require "graphql_model_mapper/resolve"
 require "graphql_model_mapper/schema"
-require "graphql_model_mapper/utility"
 require "graphql_model_mapper/encryption"
 require "graphql_model_mapper/version"
 require 'graphql_model_mapper/railtie' if defined?(Rails)

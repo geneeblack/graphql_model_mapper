@@ -96,7 +96,7 @@ module GraphqlModelMapper
             else
               total_result_type =  GraphQL::InterfaceType.define do
                 name total_result_type_name
-                field :total, -> {GraphQL::INT_TYPE} do
+                field :totalCount, -> {GraphQL::INT_TYPE} do
                   resolve -> (obj, args, ctx) {
                     obj.items.length
                   }
