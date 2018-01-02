@@ -3,6 +3,7 @@ require 'search_object/plugin/graphql'
 module GraphqlModelMapper
   module Resolve
     def self.query_resolver(obj, args, ctx, name)
+      binding.pry
         
         if obj && obj.class.name != name
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
@@ -10,15 +11,16 @@ module GraphqlModelMapper
           obj_context = obj.send(reflection.name)
           select_args = args[:select] || args
           select_args = select_args.to_h.with_indifferent_access
-          #binding.pry
-          if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][reflection.name.to_sym]
-            select_args[:full_filter] = ctx[:root_args][:full_filter][reflection.name.to_sym].to_h.with_indifferent_access.deep_merge(select_args[:full_filter].to_h.with_indifferent_access) 
+          binding.pry
+          if ctx[:root_args] && ctx[:root_args][:full_filter]
+            binding.pry
+            select_args[:full_filter] = ctx[:root_args][:full_filter].to_h.with_indifferent_access.deep_merge(select_args[:full_filter].to_h.with_indifferent_access)
           end
-          ctx[:root_args] = select_args
+          #ctx[:root_args] = select_args
         else
           obj_context = name.classify.constantize
           select_args = args[:select] || args
-          #binding.pry
+          binding.pry
           ctx[:root_args] = select_args
           select_args = select_args.to_h.with_indifferent_access
           model = obj_context
@@ -158,7 +160,7 @@ module GraphqlModelMapper
         #check for sql errors
         begin
           GraphqlModelMapper.logger.info "GraphqlModelMapper: ****** testing query for validity"
-          test_statement = obj_context.includes(implied_includes)
+          test_statement = obj_context.joins(implied_includes)
           if Rails.version.split(".").first.to_i > 3
             test_statement = test_statement.references(implied_includes)
           end

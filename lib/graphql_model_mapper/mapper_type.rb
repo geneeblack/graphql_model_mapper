@@ -98,7 +98,7 @@ module GraphqlModelMapper
                 end
                 
                 
-                ret_type = model_filter
+                ret_type = model_filter.to_list_type
             end if type_sub_key == :order_type
 
             begin 
@@ -285,7 +285,7 @@ module GraphqlModelMapper
                                         if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
                                             select_args = {}
                                             select_args[:full_filter] = ctx[:root_args][:full_filter].to_h.with_indifferent_access[ctx.ast_node.name.to_sym]
-                                            ctx[:root_args] = select_args                                
+                                            #ctx[:root_args] = select_args                                
                                         end
                                         obj
                                     }
@@ -300,9 +300,15 @@ module GraphqlModelMapper
                                     #binding.pry
                                     if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
                                         select_args = {}
-                                        select_args[:full_filter] = ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
+                                        select_args[:full_filter] = {}
+                                        select_args[:full_filter][ctx.ast_node.name.to_sym] = ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym].to_h
+                                        binding.pry
                                         ctx[:root_args] = select_args                                
                                     end
+
+                                    binding.pry
+
+                                    #obj = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, "")
                                     obj.send(ctx.ast_node.name.to_sym)
                             }
                             if GraphqlModelMapper.use_authorize
