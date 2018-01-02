@@ -18,7 +18,7 @@ module GraphqlModelMapper
         else
           obj_context = name.classify.constantize
           select_args = args[:select] || args
-          binding.pry
+          #binding.pry
           ctx[:root_args] = select_args
           select_args = select_args.to_h.with_indifferent_access
           model = obj_context
