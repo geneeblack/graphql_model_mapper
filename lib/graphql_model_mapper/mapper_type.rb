@@ -297,7 +297,7 @@ module GraphqlModelMapper
                         else
                             field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)}, property: reflection.name.to_sym do
                                 resolve -> (obj, args, ctx) {
-                                    binding.pry
+                                    #binding.pry
                                     if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
                                         select_args = {}
                                         select_args[:full_filter] = ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]

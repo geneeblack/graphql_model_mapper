@@ -10,7 +10,7 @@ module GraphqlModelMapper
           obj_context = obj.send(reflection.name)
           select_args = args[:select] || args
           select_args = select_args.to_h.with_indifferent_access
-          binding.pry
+          #binding.pry
           if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][reflection.name.to_sym]
             select_args[:full_filter] = ctx[:root_args][:full_filter][reflection.name.to_sym].to_h.with_indifferent_access.deep_merge(select_args[:full_filter].to_h.with_indifferent_access) 
           end
@@ -399,7 +399,7 @@ module GraphqlModelMapper
     end
 
     def self.apply_full_filter(scope, value, parent, parent_parent="")
-      binding.pry
+      #binding.pry
       ##{reflection_name}_#{parent_table_name}
       value.keys.map(&:to_s).uniq.sort.each do |key|
         #if value[key] && value[key].keys.include?("compare")
@@ -407,7 +407,7 @@ module GraphqlModelMapper
           reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : nil
           reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : nil
           reflection_parent = reflection_parent || parent || scope.table_name
-          binding.pry
+          #binding.pry
           value[key].each do |val|
             if !parent_parent.empty? && @aliases.include?(reflection_parent) && @aliases.count(reflection_parent) > 1           
               scope = self.get_compare(scope, "#{parent.pluralize}_#{parent_parent.pluralize}.#{key}", val["compare"],  val["value"])
@@ -418,7 +418,7 @@ module GraphqlModelMapper
           @aliases << reflection_parent
         else
           table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
-          binding.pry
+          #binding.pry
           @aliases << table_reference
           scope = self.apply_full_filter(scope, value[key], key, parent)
         end
