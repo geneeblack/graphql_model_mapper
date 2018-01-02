@@ -8,6 +8,7 @@ PATH
       graphql (>= 1.7.5)
       graphql-errors (>= 0.1.0)
       rails (>= 3.2.22.5)
+      search_object_graphql (>= 0.1)
 
 GEM
   remote: https://rubygems.org/
@@ -117,4 +118,4 @@ DEPENDENCIES
   search_object_graphql (= 0.1)
 
 BUNDLED WITH
-   1.16.0
+   1.16.1

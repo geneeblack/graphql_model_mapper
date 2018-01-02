@@ -381,7 +381,7 @@ module GraphqlModelMapper
       ##binding.pry
       result = {}
       value.keys.each do |key|
-        if !value[key].keys.include?("compare")
+        if !value[key].is_a?(Array)
           target = self.get_filter_implied_includes(value[key], key)
           if target.empty?
             result[key] = {}
@@ -399,20 +399,23 @@ module GraphqlModelMapper
     end
 
     def self.apply_full_filter(scope, value, parent, parent_parent="")
-      ##binding.pry
+      binding.pry
       ##{reflection_name}_#{parent_table_name}
       value.keys.map(&:to_s).uniq.sort.each do |key|
-        if value[key] && value[key].keys.include?("compare")
+        #if value[key] && value[key].keys.include?("compare")
+        if value[key] && value[key].is_a?(Array)
           reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : nil
           reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : nil
           reflection_parent = reflection_parent || parent || scope.table_name
-          #binding.pry
-          if !parent_parent.empty? && @aliases.include?(reflection_parent) && @aliases.count(reflection_parent) > 1           
-            scope = self.get_compare(scope, "#{parent.pluralize}_#{parent_parent.pluralize}.#{key}", value[key]["compare"],  value[key]["value"])
-          else
-            @aliases << reflection_parent
-            scope = self.get_compare(scope, "#{reflection_parent.pluralize}.#{key}", value[key]["compare"],  value[key]["value"])
+          binding.pry
+          value[key].each do |val|
+            if !parent_parent.empty? && @aliases.include?(reflection_parent) && @aliases.count(reflection_parent) > 1           
+              scope = self.get_compare(scope, "#{parent.pluralize}_#{parent_parent.pluralize}.#{key}", val["compare"],  val["value"])
+            else
+              scope = self.get_compare(scope, "#{reflection_parent.pluralize}.#{key}", val["compare"],  val["value"])
+            end
           end
+          @aliases << reflection_parent
         else
           table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
           binding.pry
@@ -442,6 +445,8 @@ module GraphqlModelMapper
       out = out + (compare == "contains" ? " like ?" : "")
       out = out + (compare == "isNull" ? " is null" : "")
       out = out + (compare == "notNull" ? " is not null" : "")
+      out = out + (compare == "isTrue" ? " = 1" : "")
+      out = out + (compare == "isFalse" ? " = 0" : "")
       
       value = (compare == "contains" ? "%#{value}%" : value) 
 

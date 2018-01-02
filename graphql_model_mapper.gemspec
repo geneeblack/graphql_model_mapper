@@ -36,6 +36,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency "activesupport", ['>= 3.2.22.5']
   spec.add_runtime_dependency "activemodel", ['>= 3.2.22.5']
   spec.add_runtime_dependency "activerecord", ['>= 3.2.22.5']
+  spec.add_runtime_dependency  "search_object_graphql", ['>= 0.1']
   spec.add_runtime_dependency "rails", ['>= 3.2.22.5']
   spec.add_development_dependency "graphql", [">= 1.7.5"]
   spec.add_development_dependency "graphql-errors", ['>= 0.1.0']

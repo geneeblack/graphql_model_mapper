@@ -170,7 +170,7 @@ module GraphqlModelMapper
                 end
         
                 db_fields.sort.each do |f|
-                    argument f.to_sym, -> {GraphqlModelMapper::MapperType.convert_compare_type(columns[f.to_s].type, columns[f.to_s].sql_type, true)} #{GraphqlModelMapper::StringCompare}
+                    argument f.to_sym, -> {GraphqlModelMapper::MapperType.convert_compare_type(columns[f.to_s].type, columns[f.to_s].sql_type, true).to_list_type} #{GraphqlModelMapper::StringCompare}
                 end
             end  if type_sub_key == :search_type_full
                             

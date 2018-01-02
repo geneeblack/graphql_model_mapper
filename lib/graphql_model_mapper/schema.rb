@@ -236,8 +236,9 @@ module GraphqlModelMapper
   GraphqlModelMapper::BooleanCompareEnum = GraphQL::EnumType.define do
     name "BooleanCompareEnum"
     description "String comparison operators"
-    value("TRUE")
-    value("FALSE")
+    value("isTrue", " = 1")
+    value("isFalse", " = 0")
+    value("notNull", "is not null")
   end
 
   GraphqlModelMapper::IntCompareEnum = GraphQL::EnumType.define do
