@@ -387,12 +387,16 @@ module GraphqlModelMapper
     description "The Date scalar type enables the serialization of date data to/from iso8601"
   
     coerce_input ->(value, ctx) do
+        #binding.pry
         begin
-            value.nil? ? nil :  Date.iso8601(value)
+            value.nil? ? nil : DateTime.iso8601(value).to_s
         rescue ArgumentError
             raise GraphQL::CoercionError, "cannot coerce `#{value.inspect}` to date"
         end
     end
-    coerce_result ->(value, ctx) { value.nil? ? nil : value.iso8601 }
+    coerce_result ->(value, ctx) { 
+      #binding.pry
+      value.nil? ? nil : value.iso8601 
+    }
   end
   

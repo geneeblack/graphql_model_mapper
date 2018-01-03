@@ -281,14 +281,6 @@ module GraphqlModelMapper
                             custom_type_name = "#{name.classify}#{reflection.name.to_s.classify}Union"
                             if GraphqlModelMapper::CustomType.const_defined?(custom_type_name)
                                 field reflection.name.to_sym, -> {GraphqlModelMapper::CustomType.const_get(custom_type_name)} do
-                                    resolve -> (obj, args, ctx) {
-                                        if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
-                                            select_args = {}
-                                            select_args[:full_filter] = ctx[:root_args][:full_filter].to_h.with_indifferent_access[ctx.ast_node.name.to_sym]
-                                            #ctx[:root_args] = select_args                                
-                                        end
-                                        obj
-                                    }
                                 end 
                             elsif GraphqlModelMapper.scan_for_polymorphic_associations
                                 field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name)}, property: reflection.name.to_sym do
@@ -296,21 +288,6 @@ module GraphqlModelMapper
                             end 
                         else
                             field reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object_with_params(klass.name, type_sub_key: type_sub_key)}, property: reflection.name.to_sym do
-                                resolve -> (obj, args, ctx) {
-                                    #binding.pry
-                                    if ctx[:root_args] && ctx[:root_args][:full_filter] && ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym]
-                                        select_args = {}
-                                        select_args[:full_filter] = {}
-                                        select_args[:full_filter][ctx.ast_node.name.to_sym] = ctx[:root_args][:full_filter][ctx.ast_node.name.to_sym].to_h
-                                        binding.pry
-                                        ctx[:root_args] = select_args                                
-                                    end
-
-                                    binding.pry
-
-                                    #obj = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, "")
-                                    obj.send(ctx.ast_node.name.to_sym)
-                            }
                             if GraphqlModelMapper.use_authorize
                                     authorized ->(ctx, model_name, access_type) {  
                                         GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  

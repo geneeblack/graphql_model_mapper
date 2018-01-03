@@ -3,26 +3,17 @@ require 'search_object/plugin/graphql'
 module GraphqlModelMapper
   module Resolve
     def self.query_resolver(obj, args, ctx, name)
-      binding.pry
+      #binding.pry
         
         if obj && obj.class.name != name
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
           model = reflection.klass
           obj_context = obj.send(reflection.name)
-          select_args = args[:select] || args
-          select_args = select_args.to_h.with_indifferent_access
-          binding.pry
-          if ctx[:root_args] && ctx[:root_args][:full_filter]
-            binding.pry
-            select_args[:full_filter] = ctx[:root_args][:full_filter].to_h.with_indifferent_access.deep_merge(select_args[:full_filter].to_h.with_indifferent_access)
-          end
-          #ctx[:root_args] = select_args
+          select_args = self.get_nested_select_args(ctx, args[:select] || args)
         else
           obj_context = name.classify.constantize
           select_args = args[:select] || args
-          binding.pry
           ctx[:root_args] = select_args
-          select_args = select_args.to_h.with_indifferent_access
           model = obj_context
         end
         
@@ -477,6 +468,31 @@ module GraphqlModelMapper
 
 
       branches
+    end
+
+    def self.get_nested_select_args(ctx, select_args)
+      a = ctx.irep_node
+      select_args = select_args.to_h.with_indifferent_access
+      selector = []
+      while a
+        selector << a.ast_node.name.to_sym
+        break if !a.parent || a.parent.ast_node.name.to_sym == :items
+        a = a.parent
+      end
+      if selector.length > 0
+        #break if ctx[:root_args][:full_filter]
+        args_key = ctx[:root_args][:full_filter].to_h.with_indifferent_access
+        selector.reverse.each do |s|
+          args_key = args_key[s] if args_key[s]
+        end
+        #binding.pry
+        if select_args[:full_filter]
+          select_args[:full_filter] = args_key.to_h.deep_merge(select_args[:full_filter].to_h).with_indifferent_access
+        else
+          select_args[:full_filter] = args_key.to_h.with_indifferent_access
+        end
+      end
+      select_args
     end
     
     class ResolveWrapper
