@@ -20,9 +20,8 @@ module GraphqlModelMapper
 
         # return obj_context if select_args.empty?
         #return obj_context if select_args.keys.select{|m| !select_args[m].nil?}.length == 0 
-          
+        
 
-    
         if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query) && GraphqlModelMapper.use_graphql_object_restriction
           raise GraphQL::ExecutionError.new("error: unauthorized access: #{:query} '#{obj_context.class_name.classify}'")
         end
@@ -70,8 +69,8 @@ module GraphqlModelMapper
         if select_args[:where] || select_args[:order] || select_args[:short_filter] || select_args[:full_filter]
           implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
           if select_args[:full_filter]
-            test = self.get_filter_implied_includes(select_args[:full_filter].to_h, parent={})
-            implied_includes = implied_includes.merge(test)
+            filter_implied_includes = self.get_filter_implied_includes(select_args[:full_filter].to_h, parent={})
+            implied_includes = implied_includes.merge(filter_implied_includes)
           end
           if !implied_includes.empty? 
             obj_context = obj_context.includes(implied_includes)
@@ -137,7 +136,6 @@ module GraphqlModelMapper
         if select_args[:full_filter]
           #binding.pry
 
-          @aliases = ctx[:table_aliases] = []
           obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h.deep_merge(implied_includes), model.name.pluralize.downcase) #.to_h.merge(implied_includes)
         end
 
@@ -148,6 +146,11 @@ module GraphqlModelMapper
           obj_context = obj_context.order(select_args[:order])
           test_query = true
         end
+
+        #binding.pry
+        #test = self.get_select(obj_context, ctx)
+        #obj_context = obj_context.select(test)
+
         #check for sql errors
         begin
           GraphqlModelMapper.logger.info "GraphqlModelMapper: ****** testing query for validity"
@@ -386,9 +389,60 @@ module GraphqlModelMapper
       result
     end
     
-    @aliases=[]
+    #@aliases=[]
     def self.apply_full_filter_with_aliases(scope, value, parent, parent_parent="")
+      @aliases = []
       self.apply_full_filter(scope, value, parent, parent_parent="")
+    end
+
+    def self.get_select(obj, ctx, root=nil)
+      @column_aliases = []
+      self.get_select_list(obj, ctx, root=nil)
+    end
+    
+    def self.get_select_list(obj, ctx, root=nil)
+
+      @column_aliases = @column_aliases || []
+      root = root || ctx.irep_node.ast_node.selections.select{|m| m.name == "items"}.first
+      ret = []
+
+      ctx_model = obj
+      root_name = root.name=='items' ?  ctx.ast_node.name : root.name
+
+
+      root_table_name = obj.reflect_on_all_associations.select{|m| m.name == root_name.to_sym}.length>0 ? obj.reflect_on_all_associations.select{|m| m.name == root_name.to_sym}.first.klass.table_name : root_name.pluralize
+
+
+      node_parent = self.get_node_parent(ctx.irep_node.parent).name || obj.table_name
+
+      node_parent_table_name = obj.reflect_on_all_associations.select{|m| m.name == node_parent.to_sym}.length>0 ? obj.reflect_on_all_associations.select{|m| m.name == node_parent.to_sym}.first.klass.table_name : node_parent.pluralize
+      
+      
+
+      if node_parent_table_name.nil?
+        node_parent_table_name = ""
+      else
+        node_parent_table_name = "_#{node_parent_table_name}"
+      end
+      @column_aliases << root_table_name
+      root_table_name = "#{root_name.pluralize}#{node_parent_table_name}" if @column_aliases.count(root_table_name) > 1
+
+      root.selections.sort{|a,b| a.name <=> b.name}.each do |r|
+        if r.selections.length > 0
+          ret = ret + self.get_select_list(obj, ctx, r)
+        elsif r.name != "totalCount"
+          ret << "#{root_table_name}.#{r.name == 'item_id' ? 'id' : r.name}"
+          puts "#{root_table_name}.#{r.name == 'item_id' ? 'id' : r.name}"
+        end
+      end
+      ret.uniq
+    end
+
+    def self.get_node_parent(node)
+      if node.name == "items"
+        node = self.get_node_parent(node.parent)
+      end
+      node
     end
 
     def self.apply_full_filter(scope, value, parent, parent_parent="")
