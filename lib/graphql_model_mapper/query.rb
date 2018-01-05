@@ -35,9 +35,10 @@ module GraphqlModelMapper
             ]
 
             default_arguments = default_arguments + [
-              {:name=>:short_filter, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :search_type).to_list_type}},
+              {:name=>:short_filter, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :search_type)}},
               {:name=>:full_filter, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :search_type_full)}},
-              {:name=>:order_by, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :order_type).to_list_type}}
+              {:name=>:order_by, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :order_type)}},
+              {:name=>:order_by_full, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :order_type_full)}}
             ]
 
             scope_methods = scope_methods.map(&:to_sym)                        

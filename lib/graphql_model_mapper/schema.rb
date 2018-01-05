@@ -250,6 +250,8 @@ module GraphqlModelMapper
     value("notEqualTo", "not equal to")
     value("lessThanOrEqualTo", "less than or equal to")
     value("greaterThanOrEqualTo", "greater than or equal to")
+    value("isNull", "is null")
+    value("notNull", "is not null")
   end
 
   GraphqlModelMapper::DateCompareEnum = GraphQL::EnumType.define do
@@ -261,6 +263,8 @@ module GraphqlModelMapper
     value("notEqualTo", "not equal to")
     value("lessThanOrEqualTo", "less than or equal to")
     value("greaterThanOrEqualTo", "greater than or equal to")
+    value("isNull", "is null")
+    value("notNull", "is not null")
   end
 
   GraphqlModelMapper::FloatCompareEnum = GraphQL::EnumType.define do
@@ -272,6 +276,8 @@ module GraphqlModelMapper
     value("notEqualTo", "not equal to")
     value("lessThanOrEqualTo", "less than or equal to")
     value("greaterThanOrEqualTo", "greater than or equal to")
+    value("isNull", "is null")
+    value("notNull", "is not null")
   end
 
   GraphqlModelMapper::GeometryObjectCompareEnum = GraphQL::EnumType.define do
@@ -283,6 +289,8 @@ module GraphqlModelMapper
     value("notEqualTo", "not equal to")
     value("lessThanOrEqualTo", "less than or equal to")
     value("greaterThanOrEqualTo", "greater than or equal to")
+    value("isNull", "is null")
+    value("notNull", "is not null")
   end
 
   GraphqlModelMapper::GeometryStringCompareEnum = GraphQL::EnumType.define do
@@ -294,6 +302,8 @@ module GraphqlModelMapper
     value("notEqualTo", "not equal to")
     value("lessThanOrEqualTo", "less than or equal to")
     value("greaterThanOrEqualTo", "greater than or equal to")
+    value("isNull", "is null")
+    value("notNull", "is not null")
   end
 
   GraphqlModelMapper::StringCompare = GraphQL::InputObjectType.define do

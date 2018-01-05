@@ -9,10 +9,11 @@ module GraphqlModelMapper
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
           model = reflection.klass
           obj_context = obj.send(reflection.name)
-          select_args = self.get_nested_select_args(ctx, args[:select] || args)
+          select_args = (args[:select] || args).to_h.with_indifferent_access
+          select_args = self.get_nested_select_args(ctx, select_args)
         else
           obj_context = name.classify.constantize
-          select_args = args[:select] || args
+          select_args = (args[:select] || args).to_h.with_indifferent_access
           ctx[:root_args] = select_args
           model = obj_context
         end
@@ -65,12 +66,17 @@ module GraphqlModelMapper
           obj_context = obj_context.send(:with_deleted)
         end
 
-        implied_includes = ""
-        if select_args[:where] || select_args[:order] || select_args[:short_filter] || select_args[:full_filter]
+        implied_includes = {}
+        binding.pry
+        if select_args[:where] || select_args[:order] || select_args[:order_by] || select_args[:order_by_full] || select_args[:short_filter] || select_args[:full_filter]
           implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
+          if select_args[:order_by_full]
+            order_implied_includes = self.get_order_implied_includes(select_args[:order_by_full].to_h, parent={})
+            implied_includes = order_implied_includes.deep_merge(implied_includes.to_h.with_indifferent_access)
+          end
           if select_args[:full_filter]
             filter_implied_includes = self.get_filter_implied_includes(select_args[:full_filter].to_h, parent={})
-            implied_includes = implied_includes.merge(filter_implied_includes)
+            implied_includes = filter_implied_includes.deep_merge(implied_includes.to_h.with_indifferent_access)
           end
           if !implied_includes.empty? 
             obj_context = obj_context.includes(implied_includes)
@@ -136,17 +142,36 @@ module GraphqlModelMapper
         if select_args[:full_filter]
           #binding.pry
 
-          obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h.deep_merge(implied_includes), model.name.pluralize.downcase) #.to_h.merge(implied_includes)
+          obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h.with_indifferent_access.deep_merge(implied_includes).to_h, model.name.pluralize.downcase)
+          #obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h, model.name.pluralize.downcase)
         end
 
         if scope_allowed
           obj_context = obj_context.send(select_args[:scope].to_sym)
         end
+
+        if select_args[:order] || select_args[:order_by] || select_args[:order_by_full]
+          obj_context = obj_context.reorder("")
+        end
+
         if select_args[:order]
           obj_context = obj_context.order(select_args[:order])
           test_query = true
         end
+  
+        if select_args[:order_by]
+          binding.pry
+          select_args[:order_by].each do |val|
+            obj_context = obj_context.order("#{val[:column]} #{val[:direction]}")
+          end
+          test_query = true
+        end
 
+        if select_args[:order_by_full]
+          binding.pry
+          obj_context = self.apply_full_order_with_aliases(obj_context, select_args[:order_by_full].to_h.with_indifferent_access.deep_merge(implied_includes).to_h, model.name.pluralize.downcase)
+          #obj_context = self.apply_full_order_with_aliases(obj_context, select_args[:order_by_full].to_h, model.name.pluralize.downcase)
+        end
         #binding.pry
         #test = self.get_select(obj_context, ctx)
         #obj_context = obj_context.select(test)
@@ -286,7 +311,7 @@ module GraphqlModelMapper
             selection_name = class_name.reflections.with_indifferent_access[selection.name].class_name
             begin                  
               current_class_name = selection_name.singularize.classify.constantize
-              dependencies[selection.name.to_sym] = self.get_implied_includes(current_class_name, selection)
+              dependencies[selection.name] = self.get_implied_includes(current_class_name, selection)
             rescue
                 # this will occur if the relation is polymorphic, since polymorphic associations do not have a class_name
                 GraphqlModelMapper.logger.info "implied_includes: #{class_name} could not resolve a class for relation #{selection.name}"
@@ -373,6 +398,22 @@ module GraphqlModelMapper
       item
     end
 
+    def self.get_order_implied_includes(value, parent={})
+      ##binding.pry
+      result = {}
+      value.keys.each do |key|
+        if !["ASC", "DESC"].include?(value[key])
+          target = self.get_order_implied_includes(value[key], key)
+          if target.empty?
+            result[key] = {}
+          else
+            result[key] =  target 
+          end
+        end
+      end
+      result
+    end
+
     def self.get_filter_implied_includes(value, parent={})
       ##binding.pry
       result = {}
@@ -390,10 +431,6 @@ module GraphqlModelMapper
     end
     
     #@aliases=[]
-    def self.apply_full_filter_with_aliases(scope, value, parent, parent_parent="")
-      @aliases = []
-      self.apply_full_filter(scope, value, parent, parent_parent="")
-    end
 
     def self.get_select(obj, ctx, root=nil)
       @column_aliases = []
@@ -445,29 +482,80 @@ module GraphqlModelMapper
       node
     end
 
-    def self.apply_full_filter(scope, value, parent, parent_parent="")
+    def self.apply_full_order_with_aliases(scope, value, parent, parent_parent="")
+      @aliases = []
+      self.apply_full_order(scope, value, parent, parent_parent="", [])
+    end
+
+    def self.apply_full_order(scope, value, parent, parent_parent="", aliases)
       #binding.pry
       ##{reflection_name}_#{parent_table_name}
+      original_aliases = aliases.dup
       value.keys.map(&:to_s).uniq.sort.each do |key|
         #if value[key] && value[key].keys.include?("compare")
-        if value[key] && value[key].is_a?(Array)
+        if value[key] && ["ASC", "DESC"].include?(value[key])
           reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : nil
           reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : nil
           reflection_parent = reflection_parent || parent || scope.table_name
           #binding.pry
+
+          
+          if !parent_parent.empty? && original_aliases.include?(reflection_parent) && original_aliases.count(reflection_parent) > 1
+            base_name = "#{parent.pluralize}_#{reflection_parent_parent.pluralize}"
+            #binding.pry
+            #@aliases << reflection_parent
+            alias_count = original_aliases.count(reflection_parent) - 1
+            has_index = alias_count > 1
+            index = has_index ? "_#{alias_count}" : ""
+            scope = scope.order( "#{base_name}#{index}.#{key} #{value[key]}") 
+            puts "#{base_name}#{index}.#{key}  #{value[key]}"         
+          else
+            scope = scope.order("#{reflection_parent.pluralize}.#{key}  #{value[key]}")
+            puts "#{reflection_parent.pluralize}.#{key}  #{value[key]}"
+          end
+        else
+          table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
+          aliases << table_reference
+          scope = self.apply_full_order(scope, value[key], key, parent, aliases)
+        end
+      end if value.public_methods.include?(:keys)
+      scope
+    end
+
+
+    def self.apply_full_filter_with_aliases(scope, value, parent, parent_parent="")
+      @aliases = []
+      self.apply_full_filter(scope, value, parent, parent_parent="", [])
+    end
+
+    def self.apply_full_filter(scope, value, parent, parent_parent="", aliases)
+      #binding.pry
+      ##{reflection_name}_#{parent_table_name}
+      original_aliases = aliases.dup
+
+      value.keys.map(&:to_s).uniq.sort.each do |key|
+        #if value[key] && value[key].keys.include?("compare")
+        if value[key] && value[key].is_a?(Array)
+          reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : parent
+          reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : parent_parent
+          reflection_parent = reflection_parent || parent || scope.table_name
           value[key].each do |val|
-            if !parent_parent.empty? && @aliases.include?(reflection_parent) && @aliases.count(reflection_parent) > 1           
-              scope = self.get_compare(scope, "#{parent.pluralize}_#{parent_parent.pluralize}.#{key}", val["compare"],  val["value"])
+            if !parent_parent.empty? &&original_aliases.include?(reflection_parent) && original_aliases.count(reflection_parent) > 1
+
+              base_name = "#{parent.pluralize}_#{reflection_parent_parent.pluralize}"
+              alias_count = original_aliases.count(reflection_parent) - 1
+              has_index = alias_count > 1
+              index = has_index ? "_#{alias_count}" : ""
+              scope = self.get_compare(scope, "#{base_name}#{index}.#{key}", val["compare"],  val["value"])
             else
               scope = self.get_compare(scope, "#{reflection_parent.pluralize}.#{key}", val["compare"],  val["value"])
             end
           end
-          @aliases << reflection_parent
         else
           table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
           #binding.pry
-          @aliases << table_reference
-          scope = self.apply_full_filter(scope, value[key], key, parent)
+          aliases << table_reference
+          scope = self.apply_full_filter(scope, value[key], key, parent, aliases)
         end
       end if value.public_methods.include?(:keys)
       scope
@@ -524,6 +612,7 @@ module GraphqlModelMapper
       branches
     end
 
+
     def self.get_nested_select_args(ctx, select_args)
       a = ctx.irep_node
       select_args = select_args.to_h.with_indifferent_access
@@ -546,7 +635,7 @@ module GraphqlModelMapper
           select_args[:full_filter] = args_key.to_h.with_indifferent_access
         end
       end
-      select_args
+      select_args.with_indifferent_access
     end
     
     class ResolveWrapper

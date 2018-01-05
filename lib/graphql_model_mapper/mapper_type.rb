@@ -29,6 +29,7 @@ module GraphqlModelMapper
         def self.get_ar_object_with_params(name, type_sub_key: :output_type)
             self.get_ar_object(name, self.get_type_params(name, type_sub_key: type_sub_key))
         end
+
         
         def self.get_ar_object(name, 
             required_attributes: [], 
@@ -76,20 +77,7 @@ module GraphqlModelMapper
             
 
             begin 
-                property_enum_type_name = "#{GraphqlModelMapper.get_type_name(name)}PropertyEnum"
-                if GraphqlModelMapper.defined_constant?(property_enum_type_name)
-                    property_enum_type = GraphqlModelMapper.get_constant(property_enum_type_name)
-                else
-                    property_enum_type = GraphQL::EnumType.define do                    
-                        #ensure type name is unique  so it does not collide with known types
-                        name  property_enum_type_name
-                        description "a property enum interface for the #{name} ActiveRecord model"
-                        db_fields.sort.each  do |f|
-                            value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean].include?(columns[f.to_s].type)
-                        end
-                    end
-                    GraphqlModelMapper.set_constant(property_enum_type_name, property_enum_type)
-                end
+                property_enum_type = self.get_property_enum_type(name, associations, db_fields, columns)
                 model_filter = GraphQL::InputObjectType.define do
                     name typename
                 
@@ -101,23 +89,66 @@ module GraphqlModelMapper
                 ret_type = model_filter.to_list_type
             end if type_sub_key == :order_type
 
-            begin 
+            ret_type = GraphQL::InputObjectType.define do
+                #ensure type name is unique  so it does not collide with known types
+                name typename
+                description "an input interface for the #{name} ActiveRecord model"
+                # create GraphQL fields for each association
+                arguments = []
+                associations.sort_by(&:name).each do |reflection|
+                    begin
+                        klass = reflection.klass if !reflection.options[:polymorphic]
+                        next if !(klass.public_methods.include?(:graphql_delete) || klass.public_methods.include?(:graphql_create) || klass.public_methods.include?(:graphql_update))
+                    rescue
+                        GraphqlModelMapper.logger.info("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
+                        next # most likely an invalid association without a class name, skip if other errors are encountered
+                    end                    
+                    if reflection.macro != :has_many
+                        if reflection.options[:polymorphic] #not currently supported as an input type
+                            #if GraphqlModelMapper.scan_for_polymorphic_associations
+                            #    argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name, type_sub_key: type_sub_key)}    
+                            #end
+                        else
 
-                property_enum_type_name = "#{GraphqlModelMapper.get_type_name(name)}PropertyEnum"
-                if GraphqlModelMapper.defined_constant?(property_enum_type_name)
-                    property_enum_type = GraphqlModelMapper.get_constant(property_enum_type_name)
-                else
-                    property_enum_type = GraphQL::EnumType.define do                    
-                        #ensure type name is unique  so it does not collide with known types
-                        name  property_enum_type_name
-                        description "a property enum interface for the #{name} ActiveRecord model"
-                        db_fields.sort.each  do |f|
-                            value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean].include?(columns[f.to_s].type)
-                        end
-                    end
-                    GraphqlModelMapper.set_constant(property_enum_type_name, property_enum_type)
+                            arg = GraphQL::Argument.define do 
+                                name reflection.name.to_sym
+                                type -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)}
+                                if GraphqlModelMapper.use_authorize
+                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
+                                    model_name klass.name
+                                    access_type :read
+                                end
+                            end
+                            arguments << arg
+        
+                            #argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)} do
+                            #    if GraphqlModelMapper.use_authorize
+                            #        authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
+                            #        model_name klass.name
+                            #        access_type :read
+                            #    end
+                            #end 
+                        end 
+                    end                
+                end
+        
+                db_fields.sort.each do |f|
+                    arg = GraphQL::Argument.new
+                    arg.name = f.to_sym
+                    arg.type = -> {GraphqlModelMapper::SortOrderEnum} #{GraphqlModelMapper::StringCompare}
+                    arguments << arg
+                    #argument f.to_sym, -> {GraphqlModelMapper::SortOrderEnum} #{GraphqlModelMapper::StringCompare}
                 end
 
+                arguments.sort_by(&:name).each do |a|
+                    argument a.name, a.type 
+                end
+            end  if type_sub_key == :order_type_full
+
+
+            begin 
+
+                property_enum_type = self.get_property_enum_type(name, associations, db_fields, columns)
                 model_filter = GraphQL::InputObjectType.define do
                     name typename
                 
@@ -128,7 +159,7 @@ module GraphqlModelMapper
                 end
 
 
-                ret_type = model_filter
+                ret_type = model_filter.to_list_type
             end if type_sub_key == :search_type
 
             ret_type = GraphQL::InputObjectType.define do
@@ -657,5 +688,44 @@ module GraphqlModelMapper
             end
         end
 
+        def self.get_property_enum_type(name, associations, db_fields, columns)
+            model = name.classify.constantize
+            property_enum_type_name = "#{GraphqlModelMapper.get_type_name(name)}PropertyEnum"
+            if GraphqlModelMapper.defined_constant?(property_enum_type_name)
+                property_enum_type = GraphqlModelMapper.get_constant(property_enum_type_name)
+            else
+                property_enum_type = GraphQL::EnumType.define do                    
+                    #ensure type name is unique  so it does not collide with known types
+                    name  property_enum_type_name
+                    description "a property enum interface for the #{name} ActiveRecord model"
+                    associations.sort_by(&:name).each do |reflection|
+                        begin
+                            klass = reflection.klass if !reflection.options[:polymorphic]
+                            next if !(klass.public_methods.include?(:graphql_delete) || klass.public_methods.include?(:graphql_create) || klass.public_methods.include?(:graphql_update))
+                        rescue
+                            GraphqlModelMapper.logger.info("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
+                            next # most likely an invalid association without a class name, skip if other errors are encountered
+                        end                    
+                        if reflection.macro != :has_many
+                            if reflection.options[:polymorphic] #not currently supported as an input type
+                                #if GraphqlModelMapper.scan_for_polymorphic_associations
+                                #    argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name, type_sub_key: type_sub_key)}    
+                                #end
+                            else
+                                #value(reflection.name, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean].include?(columns[f.to_s].type)
+                            end 
+                        end                
+                    end if 1==0
+                    
+                    db_fields.sort.each  do |f|
+                        target_type = GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, false)
+                        value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean].include?(columns[f.to_s].type)
+                        #value(f, target_type.to_s, value: "#{model.table_name}.#{f}") if [GraphQL::INT_TYPE, GraphQL::STRING_TYPE, GraphqlModelMapper::DATE_TYPE, GraphQL::BOOLEAN_TYPE,GraphqlModelMapper::GEOMETRY_OBJECT_TYPE, GraphqlModelMapper::GEOMETRY_STRING_TYPE].include?(target_type)
+                    end
+                end
+                GraphqlModelMapper.set_constant(property_enum_type_name, property_enum_type)
+            end
+            GraphqlModelMapper.get_constant(property_enum_type_name)
+        end
     end
 end    
