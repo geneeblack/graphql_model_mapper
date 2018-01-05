@@ -3,7 +3,7 @@ require 'search_object/plugin/graphql'
 module GraphqlModelMapper
   module Resolve
     def self.query_resolver(obj, args, ctx, name)
-      #binding.pry
+      ##binding.pry
         
         if obj && obj.class.name != name
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
@@ -67,7 +67,7 @@ module GraphqlModelMapper
         end
 
         implied_includes = {}
-        binding.pry
+        #binding.pry
         if select_args[:where] || select_args[:order] || select_args[:order_by] || select_args[:order_by_full] || select_args[:short_filter] || select_args[:full_filter]
           implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
           if select_args[:order_by_full]
@@ -80,7 +80,7 @@ module GraphqlModelMapper
           end
           if !implied_includes.empty? 
             obj_context = obj_context.includes(implied_includes)
-            ##binding.pry
+            ###binding.pry
             if Rails.version.split(".").first.to_i > 3
               obj_context = obj_context.references(implied_includes)
             end
@@ -140,7 +140,7 @@ module GraphqlModelMapper
           obj_context = self.apply_short_filter(obj_context, select_args[:short_filter])
         end
         if select_args[:full_filter]
-          #binding.pry
+          ##binding.pry
 
           obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h.with_indifferent_access.deep_merge(implied_includes).to_h, model.name.pluralize.downcase)
           #obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h, model.name.pluralize.downcase)
@@ -160,7 +160,7 @@ module GraphqlModelMapper
         end
   
         if select_args[:order_by]
-          binding.pry
+          #binding.pry
           select_args[:order_by].each do |val|
             obj_context = obj_context.order("#{val[:column]} #{val[:direction]}")
           end
@@ -168,11 +168,11 @@ module GraphqlModelMapper
         end
 
         if select_args[:order_by_full]
-          binding.pry
+          #binding.pry
           obj_context = self.apply_full_order_with_aliases(obj_context, select_args[:order_by_full].to_h.with_indifferent_access.deep_merge(implied_includes).to_h, model.name.pluralize.downcase)
           #obj_context = self.apply_full_order_with_aliases(obj_context, select_args[:order_by_full].to_h, model.name.pluralize.downcase)
         end
-        #binding.pry
+        ##binding.pry
         #test = self.get_select(obj_context, ctx)
         #obj_context = obj_context.select(test)
 
@@ -203,7 +203,7 @@ module GraphqlModelMapper
         #if select_args[:limit].nil?
         #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
         #end
-        ##binding.pry
+        ###binding.pry
         obj_context
     end
 
@@ -399,7 +399,7 @@ module GraphqlModelMapper
     end
 
     def self.get_order_implied_includes(value, parent={})
-      ##binding.pry
+      ###binding.pry
       result = {}
       value.keys.each do |key|
         if !["ASC", "DESC"].include?(value[key])
@@ -415,7 +415,7 @@ module GraphqlModelMapper
     end
 
     def self.get_filter_implied_includes(value, parent={})
-      ##binding.pry
+      ###binding.pry
       result = {}
       value.keys.each do |key|
         if !value[key].is_a?(Array)
@@ -488,7 +488,7 @@ module GraphqlModelMapper
     end
 
     def self.apply_full_order(scope, value, parent, parent_parent="", aliases)
-      #binding.pry
+      ##binding.pry
       ##{reflection_name}_#{parent_table_name}
       original_aliases = aliases.dup
       value.keys.map(&:to_s).uniq.sort.each do |key|
@@ -497,12 +497,12 @@ module GraphqlModelMapper
           reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : nil
           reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : nil
           reflection_parent = reflection_parent || parent || scope.table_name
-          #binding.pry
+          ##binding.pry
 
           
           if !parent_parent.empty? && original_aliases.include?(reflection_parent) && original_aliases.count(reflection_parent) > 1
             base_name = "#{parent.pluralize}_#{reflection_parent_parent.pluralize}"
-            #binding.pry
+            ##binding.pry
             #@aliases << reflection_parent
             alias_count = original_aliases.count(reflection_parent) - 1
             has_index = alias_count > 1
@@ -529,7 +529,7 @@ module GraphqlModelMapper
     end
 
     def self.apply_full_filter(scope, value, parent, parent_parent="", aliases)
-      #binding.pry
+      ##binding.pry
       ##{reflection_name}_#{parent_table_name}
       original_aliases = aliases.dup
 
@@ -553,7 +553,7 @@ module GraphqlModelMapper
           end
         else
           table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
-          #binding.pry
+          ##binding.pry
           aliases << table_reference
           scope = self.apply_full_filter(scope, value[key], key, parent, aliases)
         end
@@ -587,7 +587,7 @@ module GraphqlModelMapper
 
       value = (["isNull", "notNull"].include?(compare) ? "" : value)
 
-      ##binding.pry
+      ###binding.pry
   
       #include_table = column.split(".")[0].singularize.classify
       
@@ -628,7 +628,7 @@ module GraphqlModelMapper
         selector.reverse.each do |s|
           args_key = args_key[s] if args_key[s]
         end
-        #binding.pry
+        ##binding.pry
         if select_args[:full_filter]
           select_args[:full_filter] = args_key.to_h.deep_merge(select_args[:full_filter].to_h).with_indifferent_access
         else

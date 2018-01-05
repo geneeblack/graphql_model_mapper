@@ -362,7 +362,7 @@ module GraphqlModelMapper
                 field :model_url, types.String do
                     description 'web show url'
                     resolve -> (obj, args, ctx) {
-                        #binding.pry 
+                        ##binding.pry 
                         [obj.class.name.downcase, obj.id].join("-")
                     }
                 end
@@ -458,7 +458,7 @@ module GraphqlModelMapper
                         field :qp, hash_key: :qp do
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
-                                #binding.pry
+                                ##binding.pry
                                 #ctx.query.variables.to_h.to_json
                                 #ctx.query.query_string
                                 GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
@@ -468,7 +468,7 @@ module GraphqlModelMapper
                     field :totalCount, hash_key: :total do
                         type GraphQL::INT_TYPE
                         resolve ->(obj, args, ctx) {
-                            #binding.pry
+                            ##binding.pry
                             obj.nodes.limit(nil).count
                         }
                     end
@@ -503,7 +503,7 @@ module GraphqlModelMapper
                         field :ep, hash_key: :ep do
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
-                                #binding.pry
+                                ##binding.pry
                                 #ctx.query.variables.to_h.to_json
                                 #ctx.query.query_string
                                 GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.irep_node.arguments.to_h.with_indifferent_access.to_json)).to_s                            
@@ -512,7 +512,7 @@ module GraphqlModelMapper
                         field :qp, hash_key: :qp do
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
-                                #binding.pry
+                                ##binding.pry
                                 #ctx.query.variables.to_h.to_json
                                 #ctx.query.query_string
                                 GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
@@ -544,7 +544,7 @@ module GraphqlModelMapper
                 #raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the maximum number of pages #{max_page}") if page > max_page
                 obj = obj.offset((page-1)*limit)
             end
-            #binding.pry
+            ##binding.pry
             obj = obj.limit(limit)
             obj
         end

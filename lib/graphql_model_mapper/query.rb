@@ -100,7 +100,7 @@ module GraphqlModelMapper
                 name total_output_type_name
                 connection :items, -> { GraphqlModelMapper::MapperType.get_connection_type(name, output_type, false) }, max_page_size: GraphqlModelMapper.max_page_size do 
                       resolve -> (obj, args, ctx) {
-#                        binding.pry
+#                        #binding.pry
                         limit = GraphqlModelMapper.max_page_size
                         raise GraphQL::ExecutionError.new("you have requested more items than the maximum page size #{limit}") if obj.length > limit && (args[:first].to_i > limit || args[:last].to_i > limit)
                         obj
