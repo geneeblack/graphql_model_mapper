@@ -2,14 +2,13 @@ require 'search_object/plugin/graphql'
 
 module GraphqlModelMapper
   module Resolve
-    def self.query_resolver(obj, args, ctx, name)
-      ##binding.pry
-        
+    def self.query_resolver(obj, args, ctx, name)        
         if obj && obj.class.name != name
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
           model = reflection.klass
           obj_context = obj.send(reflection.name)
           select_args = (args[:select] || args).to_h.with_indifferent_access
+          ##binding.pry
           select_args = self.get_nested_select_args(ctx, select_args)
         else
           obj_context = name.classify.constantize
@@ -18,10 +17,16 @@ module GraphqlModelMapper
           model = obj_context
         end
         
+        #scope_args = []
+        #select_args.keys.each do |key|
+          #binding.pry
+        #  scope_args << GraphQL::Language::Nodes::Argument.new(name: key, value: select_args[key])
+        #end if false
+        #ctx.ast_node.arguments = scope_args
 
-        # return obj_context if select_args.empty?
-        #return obj_context if select_args.keys.select{|m| !select_args[m].nil?}.length == 0 
-        
+        #testval = ctx.ast_node.to_query_string
+        ##binding.pry
+
 
         if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query) && GraphqlModelMapper.use_graphql_object_restriction
           raise GraphQL::ExecutionError.new("error: unauthorized access: #{:query} '#{obj_context.class_name.classify}'")
@@ -66,10 +71,18 @@ module GraphqlModelMapper
           obj_context = obj_context.send(:with_deleted)
         end
 
+
         implied_includes = {}
-        #binding.pry
+        if select_args[:joins]
+          obj_context = obj_context.joins(select_args[:joins])
+        end
+
+        if select_args[:includes]
+          binding.pry
+          implied_includes = select_args[:includes]
+        end
         if select_args[:where] || select_args[:order] || select_args[:order_by] || select_args[:order_by_full] || select_args[:short_filter] || select_args[:full_filter]
-          implied_includes = self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node)
+          implied_includes = implied_includes.deep_merge(self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node))
           if select_args[:order_by_full]
             order_implied_includes = self.get_order_implied_includes(select_args[:order_by_full].to_h, parent={})
             implied_includes = order_implied_includes.deep_merge(implied_includes.to_h.with_indifferent_access)
@@ -78,9 +91,9 @@ module GraphqlModelMapper
             filter_implied_includes = self.get_filter_implied_includes(select_args[:full_filter].to_h, parent={})
             implied_includes = filter_implied_includes.deep_merge(implied_includes.to_h.with_indifferent_access)
           end
+          ctx[:implied_includes] = implied_includes
           if !implied_includes.empty? 
             obj_context = obj_context.includes(implied_includes)
-            ###binding.pry
             if Rails.version.split(".").first.to_i > 3
               obj_context = obj_context.references(implied_includes)
             end
@@ -140,10 +153,9 @@ module GraphqlModelMapper
           obj_context = self.apply_short_filter(obj_context, select_args[:short_filter])
         end
         if select_args[:full_filter]
+          args = select_args[:full_filter].to_h.with_indifferent_access.deep_merge(implied_includes).to_h
           ##binding.pry
-
-          obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h.with_indifferent_access.deep_merge(implied_includes).to_h, model.name.pluralize.downcase)
-          #obj_context = self.apply_full_filter_with_aliases(obj_context, select_args[:full_filter].to_h, model.name.pluralize.downcase)
+          obj_context = self.apply_full_filter(obj_context, args, model.table_name, "", [])
         end
 
         if scope_allowed
@@ -160,7 +172,6 @@ module GraphqlModelMapper
         end
   
         if select_args[:order_by]
-          #binding.pry
           select_args[:order_by].each do |val|
             obj_context = obj_context.order("#{val[:column]} #{val[:direction]}")
           end
@@ -168,18 +179,14 @@ module GraphqlModelMapper
         end
 
         if select_args[:order_by_full]
-          #binding.pry
-          obj_context = self.apply_full_order_with_aliases(obj_context, select_args[:order_by_full].to_h.with_indifferent_access.deep_merge(implied_includes).to_h, model.name.pluralize.downcase)
-          #obj_context = self.apply_full_order_with_aliases(obj_context, select_args[:order_by_full].to_h, model.name.pluralize.downcase)
+          args = select_args[:order_by_full].to_h.with_indifferent_access.deep_merge(implied_includes).to_h
+          obj_context = self.apply_full_order(obj_context, args, model.table_name, "", [])
         end
-        ##binding.pry
-        #test = self.get_select(obj_context, ctx)
-        #obj_context = obj_context.select(test)
 
         #check for sql errors
         begin
           GraphqlModelMapper.logger.info "GraphqlModelMapper: ****** testing query for validity"
-          test_statement = obj_context.joins(implied_includes)
+          test_statement = obj_context.includes(implied_includes)
           if Rails.version.split(".").first.to_i > 3
             test_statement = test_statement.references(implied_includes)
           end
@@ -200,10 +207,7 @@ module GraphqlModelMapper
           end
           raise err if !err.nil?
         end
-        #if select_args[:limit].nil?
-        #    obj_context = obj_context.limit(GraphqlModelMapper.max_page_size+1)
-        #end
-        ###binding.pry
+        #binding.pry
         obj_context
     end
 
@@ -399,7 +403,6 @@ module GraphqlModelMapper
     end
 
     def self.get_order_implied_includes(value, parent={})
-      ###binding.pry
       result = {}
       value.keys.each do |key|
         if !["ASC", "DESC"].include?(value[key])
@@ -415,7 +418,6 @@ module GraphqlModelMapper
     end
 
     def self.get_filter_implied_includes(value, parent={})
-      ###binding.pry
       result = {}
       value.keys.each do |key|
         if !value[key].is_a?(Array)
@@ -430,16 +432,8 @@ module GraphqlModelMapper
       result
     end
     
-    #@aliases=[]
-
-    def self.get_select(obj, ctx, root=nil)
-      @column_aliases = []
-      self.get_select_list(obj, ctx, root=nil)
-    end
     
-    def self.get_select_list(obj, ctx, root=nil)
-
-      @column_aliases = @column_aliases || []
+    def self.get_select_list(obj, ctx, root=nil, aliases)
       root = root || ctx.irep_node.ast_node.selections.select{|m| m.name == "items"}.first
       ret = []
 
@@ -461,12 +455,12 @@ module GraphqlModelMapper
       else
         node_parent_table_name = "_#{node_parent_table_name}"
       end
-      @column_aliases << root_table_name
-      root_table_name = "#{root_name.pluralize}#{node_parent_table_name}" if @column_aliases.count(root_table_name) > 1
+      aliases << root_table_name
+      root_table_name = "#{root_name.pluralize}#{node_parent_table_name}" if aliases.count(root_table_name) > 1
 
       root.selections.sort{|a,b| a.name <=> b.name}.each do |r|
         if r.selections.length > 0
-          ret = ret + self.get_select_list(obj, ctx, r)
+          ret = ret + self.get_select_list(obj, ctx, r, aliases)
         elsif r.name != "totalCount"
           ret << "#{root_table_name}.#{r.name == 'item_id' ? 'id' : r.name}"
           puts "#{root_table_name}.#{r.name == 'item_id' ? 'id' : r.name}"
@@ -482,28 +476,17 @@ module GraphqlModelMapper
       node
     end
 
-    def self.apply_full_order_with_aliases(scope, value, parent, parent_parent="")
-      @aliases = []
-      self.apply_full_order(scope, value, parent, parent_parent="", [])
-    end
-
     def self.apply_full_order(scope, value, parent, parent_parent="", aliases)
-      ##binding.pry
-      ##{reflection_name}_#{parent_table_name}
       original_aliases = aliases.dup
       value.keys.map(&:to_s).uniq.sort.each do |key|
         #if value[key] && value[key].keys.include?("compare")
         if value[key] && ["ASC", "DESC"].include?(value[key])
-          reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : nil
-          reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : nil
-          reflection_parent = reflection_parent || parent || scope.table_name
-          ##binding.pry
+          reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : parent || scope.table_name
+          reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : parent_parent
 
           
           if !parent_parent.empty? && original_aliases.include?(reflection_parent) && original_aliases.count(reflection_parent) > 1
             base_name = "#{parent.pluralize}_#{reflection_parent_parent.pluralize}"
-            ##binding.pry
-            #@aliases << reflection_parent
             alias_count = original_aliases.count(reflection_parent) - 1
             has_index = alias_count > 1
             index = has_index ? "_#{alias_count}" : ""
@@ -523,24 +506,17 @@ module GraphqlModelMapper
     end
 
 
-    def self.apply_full_filter_with_aliases(scope, value, parent, parent_parent="")
-      @aliases = []
-      self.apply_full_filter(scope, value, parent, parent_parent="", [])
-    end
-
+    
     def self.apply_full_filter(scope, value, parent, parent_parent="", aliases)
-      ##binding.pry
-      ##{reflection_name}_#{parent_table_name}
       original_aliases = aliases.dup
 
       value.keys.map(&:to_s).uniq.sort.each do |key|
         #if value[key] && value[key].keys.include?("compare")
         if value[key] && value[key].is_a?(Array)
-          reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : parent
+          reflection_parent = scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent.to_sym}.first.klass.table_name : parent || scope.table_name
           reflection_parent_parent = scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.length>0 ? scope.reflect_on_all_associations.select{|m| m.name == parent_parent.to_sym}.first.klass.table_name : parent_parent
-          reflection_parent = reflection_parent || parent || scope.table_name
           value[key].each do |val|
-            if !parent_parent.empty? &&original_aliases.include?(reflection_parent) && original_aliases.count(reflection_parent) > 1
+            if !parent_parent.empty? && original_aliases.include?(reflection_parent) && original_aliases.count(reflection_parent) > 1
 
               base_name = "#{parent.pluralize}_#{reflection_parent_parent.pluralize}"
               alias_count = original_aliases.count(reflection_parent) - 1
@@ -548,12 +524,12 @@ module GraphqlModelMapper
               index = has_index ? "_#{alias_count}" : ""
               scope = self.get_compare(scope, "#{base_name}#{index}.#{key}", val["compare"],  val["value"])
             else
+              ##binding.pry
               scope = self.get_compare(scope, "#{reflection_parent.pluralize}.#{key}", val["compare"],  val["value"])
             end
           end
         else
           table_reference = scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.length > 0 ? scope.reflect_on_all_associations.select{|m| m.name == key.to_sym}.first.klass.table_name : scope.table_name
-          ##binding.pry
           aliases << table_reference
           scope = self.apply_full_filter(scope, value[key], key, parent, aliases)
         end
@@ -570,6 +546,7 @@ module GraphqlModelMapper
     end
 
     def self.get_compare(scope, column, compare, value)
+      return scope if compare == "noOp" 
       out = "#{column}"
       out = out + (compare == "greaterThan" ? " > ?" : "")
       out = out + (compare == "lessThan" ? " < ?" : "")
@@ -586,14 +563,6 @@ module GraphqlModelMapper
       value = (compare == "contains" ? "%#{value}%" : value) 
 
       value = (["isNull", "notNull"].include?(compare) ? "" : value)
-
-      ###binding.pry
-  
-      #include_table = column.split(".")[0].singularize.classify
-      
-      #if include_table != scope.name
-        #scope.includes(include_table)
-      #end
       puts [out, value]
       scope.where([out, value])
     end
@@ -618,17 +587,21 @@ module GraphqlModelMapper
       select_args = select_args.to_h.with_indifferent_access
       selector = []
       while a
-        selector << a.ast_node.name.to_sym
-        break if !a.parent || a.parent.ast_node.name.to_sym == :items
+        selector << a.ast_node.name.to_s
+        break if !a.parent ||  [:items, :edges, :node, :pageInfo, :page].include?(a.parent.ast_node.name.to_sym)
         a = a.parent
       end
       if selector.length > 0
         #break if ctx[:root_args][:full_filter]
         args_key = ctx[:root_args][:full_filter].to_h.with_indifferent_access
         selector.reverse.each do |s|
-          args_key = args_key[s] if args_key[s]
+          if args_key[s]
+            args_key = args_key[s]
+          else
+            args_key = {}
+            break;
+          end
         end
-        ##binding.pry
         if select_args[:full_filter]
           select_args[:full_filter] = args_key.to_h.deep_merge(select_args[:full_filter].to_h).with_indifferent_access
         else

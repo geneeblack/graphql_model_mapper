@@ -1,4 +1,6 @@
 module GraphqlModelMapper
+  require "zlib"
+
   module Encryption
     def self.key
       secret = ENV['GRAPHQL_SECRET_TOKEN'] || ENV['SECRET_TOKEN'] || GraphqlModelMapper.secret_token || nil
@@ -13,12 +15,12 @@ module GraphqlModelMapper
     
     def self.encode(text)
       return text if self.key.nil?
-      Base64.encode64(ActiveSupport::Gzip.compress(aes(:encrypt, text))).strip
+      Base64.encode64( Zlib::Deflate.deflate(aes(:encrypt, text))).strip
     end
     
     def self.decode(text)
       return text if self.key.nil?
-      aes(:decrypt, ActiveSupport::Gzip.decompress(Base64.decode64(text)))
+      aes(:decrypt, Zlib::Inflate.inflate((Base64.decode64(text))))
     end
   end
 end

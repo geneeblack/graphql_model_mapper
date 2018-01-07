@@ -198,8 +198,8 @@ The default arguments handled by the default resolver and exposed on the query a
     
     default_arguments =
     [{:name=>:explain,  :type=>GraphQL::BOOLEAN_TYPE, :default=>nil, :authorization=>:manage},              # handled by the default resolver, outputs the top level sql for the operation
-    {:name=>:id,        :type=>GraphQL::INT_TYPE, :default=>nil},                                           # allows input of an global id for top level record selection for the model
-    {:name=>:ids,       :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil},                              # allows input of an array of global ids for top level records selection for the model
+    {:name=>:id,        :type=>GraphQL::ID, :default=>nil},                                           # allows input of an global id for top level record selection for the model
+    {:name=>:ids,       :type=>GraphQL::ID.to_list_type, :default=>nil},                              # allows input of an array of global ids for top level records selection for the model
     {:name=>:item_id,   :type=>GraphQL::INT_TYPE, :default=>nil},                                           # allows input of a record id for top level record selection for the model
     {:name=>:item_ids,  :type=>GraphQL::INT_TYPE.to_list_type, :default=>nil}                               # allows input of an array of record ids for top level records selection for the model
     {:name=>:limit,     :type=>GraphQL::INT_TYPE, :default=>50},                                            # limits the number of records retuurned (defaults to 50 records)

@@ -162,6 +162,50 @@ module GraphqlModelMapper
                 ret_type = model_filter.to_list_type
             end if type_sub_key == :search_type
 
+
+            ret_type = GraphQL::InputObjectType.define do
+                #ensure type name is unique  so it does not collide with known types
+                name typename
+                description "an input interface for the #{name} ActiveRecord model"
+                # create GraphQL fields for each association
+                if associations.count == 0 
+                    argument "include".to_sym, GraphQL::BOOLEAN_TYPE
+                end
+                associations.sort_by(&:name).each do |reflection|
+                    begin
+                        klass = reflection.klass if !reflection.options[:polymorphic]
+                        next if !(klass.public_methods.include?(:graphql_delete) || klass.public_methods.include?(:graphql_create) || klass.public_methods.include?(:graphql_update))
+                    rescue
+                        GraphqlModelMapper.logger.info("invalid relation #{reflection.name} specified on the #{name} model, the relation class does not exist")
+                        next # most likely an invalid association without a class name, skip if other errors are encountered
+                    end                    
+                    if reflection.macro == :has_many
+                        argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)} do
+                            if GraphqlModelMapper.use_authorize
+                                authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true }
+                                model_name klass.name
+                                access_type :read
+                            end
+                        end   
+                    else
+                        if reflection.options[:polymorphic] #not currently supported as an input type
+                            #if GraphqlModelMapper.scan_for_polymorphic_associations
+                            #    argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_polymorphic_type(reflection, name, type_sub_key: type_sub_key)}    
+                            #end
+                        else
+                            argument reflection.name.to_sym, -> {GraphqlModelMapper::MapperType.get_ar_object(klass.name, type_sub_key: type_sub_key)} do
+                                if GraphqlModelMapper.use_authorize
+                                    authorized ->(ctx, model_name, access_type) { GraphqlModelMapper.use_graphql_object_restriction ? GraphqlModelMapper.authorized?(ctx, model_name, access_type.to_sym) : true  }
+                                    model_name klass.name
+                                    access_type :read
+                                end
+                            end 
+                        end 
+                    end                
+                end        
+            end  if type_sub_key == :includes_type
+                            
+
             ret_type = GraphQL::InputObjectType.define do
                 #ensure type name is unique  so it does not collide with known types
                 name typename
@@ -362,8 +406,14 @@ module GraphqlModelMapper
                 field :model_url, types.String do
                     description 'web show url'
                     resolve -> (obj, args, ctx) {
-                        ##binding.pry 
-                        [obj.class.name.downcase, obj.id].join("-")
+                        [GraphqlModelMapper::Resolve.get_node_parent(ctx.parent.irep_node).name.singularize, obj.id].join("-")
+                    }
+                end
+                field :node_reference, types.String do
+                    description 'a graphql query for this record'
+                    resolve -> (obj, args, ctx) {
+                        binding.pry
+                        [ GraphqlModelMapper::Resolve.get_node_parent(ctx.parent.irep_node).name.singularize.downcase, obj.id].join("-")
                     }
                 end
             end if type_sub_key == :output_type
@@ -458,9 +508,6 @@ module GraphqlModelMapper
                         field :qp, hash_key: :qp do
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
-                                ##binding.pry
-                                #ctx.query.variables.to_h.to_json
-                                #ctx.query.query_string
                                 GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
                             }
                         end
@@ -468,7 +515,6 @@ module GraphqlModelMapper
                     field :totalCount, hash_key: :total do
                         type GraphQL::INT_TYPE
                         resolve ->(obj, args, ctx) {
-                            ##binding.pry
                             obj.nodes.limit(nil).count
                         }
                     end
@@ -484,37 +530,121 @@ module GraphqlModelMapper
             if GraphqlModelMapper.defined_constant?(list_type_name)
                 list_type = GraphqlModelMapper.get_constant(list_type_name)
             else
+                page_info_type_name = "FlatPageInfo"
+                if GraphqlModelMapper.defined_constant?(page_info_type_name)
+                    page_info_type = GraphqlModelMapper.get_constant(page_info_type_name)
+                else
+                    page_info_type = GraphQL::ObjectType.define do
+                        name page_info_type_name
+                        field :totalItems, -> {GraphQL::INT_TYPE}, hash_key: :total do 
+                            resolve->(obj,args, ctx){
+                                ctx[:total_count] || obj.count
+                            }
+                        end
+                        field :hasNextPage, GraphQL::BOOLEAN_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:has_next_page]
+                            }
+                        end
+                        field :hasPriorPage, GraphQL::BOOLEAN_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:has_prior_page]
+                            }
+                        end
+                        field :currentPage, GraphQL::INT_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:current_page]
+                            }
+                        end
+                        field :totalPages, GraphQL::INT_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:page_count]
+                            }
+                        end
+                        field :itemsPerPage, GraphQL::INT_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:per_page]
+                            }
+                        end
+                    end
+                    GraphqlModelMapper.set_constant(page_info_type_name, page_info_type)
+                end
                 list_type = GraphQL::ObjectType.define do
                     name(list_type_name)
                 
                     field :items, -> {output_type.to_list_type}, hash_key: :items do
-                        argument :per_page, GraphQL::INT_TYPE
+                        argument :perPage, GraphQL::INT_TYPE
                         argument :page, GraphQL::INT_TYPE
                         resolve -> (obj,args,ctx){ 
-                            GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx) 
+                            ctx[:items] || GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx) 
                         }
                     end
-                    field :totalCount, -> {GraphQL::INT_TYPE}, hash_key: :total do 
-                        resolve->(obj,args, ctx){
-                            obj.count
+                    field :paging, -> { GraphqlModelMapper.get_constant(page_info_type_name) }, hash_key: :paging do 
+                        argument :perPage, GraphQL::INT_TYPE
+                        argument :page, GraphQL::INT_TYPE
+                        resolve -> (obj,args,ctx){ 
+
+                            ctx[:total_count] = obj.count
+                            ctx[:per_page] = args[:perPage] || GraphqlModelMapper.max_page_size
+                            ctx[:per_page] = [ GraphqlModelMapper.max_page_size, ctx[:per_page] ].min
+                            ctx[:current_page] = args[:page] ? [args[:page],1].max : 1
+                            ctx[:page_count] = (ctx[:total_count]/ctx[:per_page]).ceil
+                            ctx[:current_page] = [ctx[:page_count], ctx[:current_page] ].min
+                            ctx[:has_prior_page] = ctx[:current_page] > 1
+                            ctx[:has_next_page] = ctx[:current_page] < ctx[:page_count]
+
+                            ctx[:items] = GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx)                            
+                            ctx[:items]
+                        }
+                    end
+                    field :node_collection, hash_key: :reference do
+                        type GraphQL::STRING_TYPE
+                        resolve ->(obj, args, ctx) {
+                            #ctx.parent.ast_node.name = model_name.downcase
+                            #GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.ast_node.to_query_string)).to_s
+                            ##binding.pry
+                            a = ctx.parent.ast_node.dup
+                            a.name = obj.name.downcase
+
+
+                            arg_name_select = "where"
+                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
+                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
+                            binding.pry
+                            arg.value = obj.arel.where_sql.sub("WHERE", "")
+                            a.arguments.append(arg) if target_arg.nil?
+
+                            arg_name_select = "order"
+                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
+                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
+                            arg.value = obj.arel.order_clauses.join(",")
+                            a.arguments.append(arg) if target_arg.nil?
+
+                            arg_name_select = "includes"
+                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
+                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
+                            arg.value = obj.includes_values.first
+                            a.arguments.append(arg) if target_arg.nil?
+                            
+                            arg_name_select = "joins"
+                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
+                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
+                            arg.value = obj.arel.join_sql
+                            a.arguments.append(arg) if target_arg.nil?
+
+                            a.to_query_string                            
                         }
                     end
                     if root
                         field :ep, hash_key: :ep do
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
-                                ##binding.pry
-                                #ctx.query.variables.to_h.to_json
-                                #ctx.query.query_string
                                 GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.irep_node.arguments.to_h.with_indifferent_access.to_json)).to_s                            
                             }
                         end
                         field :qp, hash_key: :qp do
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
-                                ##binding.pry
-                                #ctx.query.variables.to_h.to_json
-                                #ctx.query.query_string
                                 GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
                             }
                         end
@@ -531,20 +661,16 @@ module GraphqlModelMapper
             last_rec = nil
             limit = GraphqlModelMapper.max_page_size.to_i
             
-            if args[:per_page]
-                per_page = args[:per_page].to_i
-                raise GraphQL::ExecutionError.new("per_page must be greater than 0") if per_page < 1
-                raise GraphQL::ExecutionError.new("you requested more items than the maximum page size #{limit}, please reduce your requested per_page entry") if per_page > limit
+            if args[:perPage]
+                per_page = [args[:perPage].to_i, 1].max
                 limit = [per_page,limit].min
             end
             if args[:page]
-                page = args[:page].to_i
-                raise GraphQL::ExecutionError.new("page must be greater than 0") if page < 1
-                #max_page = (obj.count/limit).ceil
-                #raise GraphQL::ExecutionError.new("you requested page #{page} which is greater than the maximum number of pages #{max_page}") if page > max_page
+                ##binding.pry
+                page = [ctx[:page_count], args[:page]].min
+                page = [page, 1].max
                 obj = obj.offset((page-1)*limit)
             end
-            ##binding.pry
             obj = obj.limit(limit)
             obj
         end

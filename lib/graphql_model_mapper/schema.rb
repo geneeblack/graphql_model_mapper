@@ -45,6 +45,7 @@ module GraphqlModelMapper
 
       schema = GraphQL::Schema.define do
         use GraphQL::Backtrace if use_backtrace
+        instrument :query, QueryInstrumentation
         default_max_page_size max_page_size.to_i
         mutation GraphqlModelMapper.MutationType
         query GraphqlModelMapper.QueryType
@@ -86,7 +87,6 @@ module GraphqlModelMapper
         }
       end
 
-     
       schema.query_analyzers << GraphQL::Analysis::QueryDepth.new { |query, depth| Rails.logger.info("[******GraphqlModelMapper Query Depth] #{depth}") } if log_query_depth
       schema.query_analyzers << GraphQL::Analysis::QueryComplexity.new { |query, complexity| Rails.logger.info("[******GraphqlModelMapper Query Complexity] #{complexity}")} if log_query_complexity
       GraphQL::Errors.configure(schema) do
@@ -173,10 +173,11 @@ module GraphqlModelMapper
     return_field :success, GraphQL::BOOLEAN_TYPE
 
     resolve -> (obj, args, ctx){
-        {
-          success: true
-        }
+      ctx[:current_user] = User.authenticate(args[:user_name], args[:password])
+      {
+        success: logged_in?
       }
+    }
   end
 
   GraphqlModelMapper::LOGOUT = GraphQL::Relay::Mutation.define do
@@ -211,11 +212,13 @@ module GraphqlModelMapper
     end 
   end
 
+
   GraphqlModelMapper::SortOrderEnum = GraphQL::EnumType.define do
     name "SortOrderEnum"
     description "allows selection of ascending descending"
     value("ascending", "asc", value: "ASC")
     value("descending", "desc", value: "DESC")
+    value("noOp", "operation placeholder, no operation will be performed on this item", value:"")
   end
 
   GraphqlModelMapper::StringCompareEnum = GraphQL::EnumType.define do
@@ -231,6 +234,7 @@ module GraphqlModelMapper
     value("notContain", "contains")
     value("isNull", "is null")
     value("notNull", "is not null")
+    value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
   GraphqlModelMapper::BooleanCompareEnum = GraphQL::EnumType.define do
@@ -239,6 +243,7 @@ module GraphqlModelMapper
     value("isTrue", " = 1")
     value("isFalse", " = 0")
     value("notNull", "is not null")
+    value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
   GraphqlModelMapper::IntCompareEnum = GraphQL::EnumType.define do
@@ -252,6 +257,7 @@ module GraphqlModelMapper
     value("greaterThanOrEqualTo", "greater than or equal to")
     value("isNull", "is null")
     value("notNull", "is not null")
+    value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
   GraphqlModelMapper::DateCompareEnum = GraphQL::EnumType.define do
@@ -265,6 +271,7 @@ module GraphqlModelMapper
     value("greaterThanOrEqualTo", "greater than or equal to")
     value("isNull", "is null")
     value("notNull", "is not null")
+    value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
   GraphqlModelMapper::FloatCompareEnum = GraphQL::EnumType.define do
@@ -278,6 +285,7 @@ module GraphqlModelMapper
     value("greaterThanOrEqualTo", "greater than or equal to")
     value("isNull", "is null")
     value("notNull", "is not null")
+    value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
   GraphqlModelMapper::GeometryObjectCompareEnum = GraphQL::EnumType.define do
@@ -291,6 +299,7 @@ module GraphqlModelMapper
     value("greaterThanOrEqualTo", "greater than or equal to")
     value("isNull", "is null")
     value("notNull", "is not null")
+    value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
   GraphqlModelMapper::GeometryStringCompareEnum = GraphQL::EnumType.define do
@@ -304,8 +313,41 @@ module GraphqlModelMapper
     value("greaterThanOrEqualTo", "greater than or equal to")
     value("isNull", "is null")
     value("notNull", "is not null")
+    value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
+  GraphqlModelMapper::JobIntGroup = GraphQL::ObjectType.define do
+    name "JobGroup"
+    field :key, [GraphQL::INT_TYPE]
+    field :count, GraphQL::INT_TYPE
+    field :sum, GraphQL::INT_TYPE
+    field :min, GraphQL::INT_TYPE
+    field :max, GraphQL::INT_TYPE
+    field :items, -> { Job.graphql_query }, max_page_size: GraphqlModelMapper.max_page_size do 
+      resolve -> (obj, args, ctx) {
+        limit = GraphqlModelMapper.max_page_size
+        raise GraphQL::ExecutionError.new("you have requested more items than the maximum page size #{limit}") if obj.length > limit && (args[:first].to_i > limit || args[:last].to_i > limit)
+        obj
+      }
+    end
+    field :groups, [GraphqlModelMapper::JobIntGroup]
+  end
+
+  GraphqlModelMapper::JobStringGroup = GraphQL::ObjectType.define do
+    name "JobGroup"
+    field :key, [GraphQL::STRING_TYPE]
+    field :count, GraphQL::INT_TYPE
+    field :min, GraphQL::STRING_TYPE
+    field :max, GraphQL::STRING_TYPE
+    field :items, -> {  Job.graphql_query }, max_page_size: GraphqlModelMapper.max_page_size do 
+      resolve -> (obj, args, ctx) {
+        limit = GraphqlModelMapper.max_page_size
+        raise GraphQL::ExecutionError.new("you have requested more items than the maximum page size #{limit}") if obj.length > limit && (args[:first].to_i > limit || args[:last].to_i > limit)
+        obj
+      }
+    end
+  end
+  
   GraphqlModelMapper::StringCompare = GraphQL::InputObjectType.define do
     name "StringCompare"
     argument :compare, GraphqlModelMapper::StringCompareEnum
@@ -397,16 +439,29 @@ module GraphqlModelMapper
     description "The Date scalar type enables the serialization of date data to/from iso8601"
   
     coerce_input ->(value, ctx) do
-        ##binding.pry
         begin
             value.nil? ? nil : DateTime.iso8601(value).to_s
         rescue ArgumentError
-            raise GraphQL::CoercionError, "cannot coerce `#{value.inspect}` to date"
+            raise GraphQL::CoercionError, "cannot coerce `#{value.inspect}` to ISO 8601 date (YYYY-MM-DDThh:mm:ss+00:00 or YYYY-MM-DDThh:mm:ssZ or YYYYMMDDThhmmss5346Z )"
         end
     end
     coerce_result ->(value, ctx) { 
-      ##binding.pry
       value.nil? ? nil : value.iso8601 
     }
   end
   
+
+  module QueryInstrumentation
+    module_function
+  
+    # Log the time of the query
+    def before_query(query)
+      Rails.logger.info("Query: #{query.query_string}")
+      Rails.logger.info("Query begin: #{Time.now.to_i}")
+    end
+  
+    def after_query(query)
+      Rails.logger.info("Query: #{query.query_string}")
+      Rails.logger.info("Query end: #{Time.now.to_i}")
+    end
+  end
