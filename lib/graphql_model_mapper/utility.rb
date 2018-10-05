@@ -4,7 +4,7 @@ module GraphqlModelMapper
     Rails.application.eager_load!
     ActiveRecord::Base.descendants.each.select do |clz|
       begin
-        clz.included_modules.include?(GraphqlModelMapper) && (clz.public_methods.include?(:graphql_query) || clz.public_methods.include?(:graphql_update) || clz.public_methods.include?(:graphql_delete) || clz.public_methods.include?(:graphql_create) || clz.public_methods.include?(:graphql_types))
+        clz.include(GraphqlModelMapper) && clz.included_modules.include?(GraphqlModelMapper) && (clz.public_methods.include?(:graphql_query) || clz.public_methods.include?(:graphql_update) || clz.public_methods.include?(:graphql_delete) || clz.public_methods.include?(:graphql_create) || clz.public_methods.include?(:graphql_types))
       rescue
         # it is okay that this is empty - just covering the possibility
       end
@@ -13,7 +13,7 @@ module GraphqlModelMapper
 
   def self.schema_queries
     fields = []
-    GraphqlModelMapper.implementations.select{|t| t.public_methods.include?(:graphql_query)}.each { |t|      
+    GraphqlModelMapper.implementations.each { |t|      
       fields << { :name =>GraphqlModelMapper.get_type_case(t.name, false).to_sym, :field => t.graphql_query, :model_name=>t.name, :access_type=>:query }
     }
     fields

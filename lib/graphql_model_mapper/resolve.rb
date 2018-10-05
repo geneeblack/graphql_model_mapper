@@ -3,12 +3,13 @@ require 'search_object/plugin/graphql'
 module GraphqlModelMapper
   module Resolve
     def self.query_resolver(obj, args, ctx, name)        
-        if obj && obj.class.name != name
+ 
+       if obj && obj.class.name != name
           reflection = obj.class.name.classify.constantize.reflect_on_all_associations.select{|k| k.name == ctx.ast_node.name.to_sym}.first
           model = reflection.klass
           obj_context = obj.send(reflection.name)
           select_args = (args[:select] || args).to_h.with_indifferent_access
-          ##binding.pry
+          ###binding.pry
           select_args = self.get_nested_select_args(ctx, select_args)
         else
           obj_context = name.classify.constantize
@@ -16,17 +17,16 @@ module GraphqlModelMapper
           ctx[:root_args] = select_args
           model = obj_context
         end
-        
+        #binding.pry
         #scope_args = []
         #select_args.keys.each do |key|
-          #binding.pry
+          ##binding.pry
         #  scope_args << GraphQL::Language::Nodes::Argument.new(name: key, value: select_args[key])
         #end if false
         #ctx.ast_node.arguments = scope_args
 
         #testval = ctx.ast_node.to_query_string
-        ##binding.pry
-
+        #binding.pry
 
         if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query) && GraphqlModelMapper.use_graphql_object_restriction
           raise GraphQL::ExecutionError.new("error: unauthorized access: #{:query} '#{obj_context.class_name.classify}'")
@@ -36,6 +36,17 @@ module GraphqlModelMapper
         with_deleted_allowed = false
         test_query = false
 
+
+        if select_args[:node_arguments]
+          local_select = JSON(select_args[:node_arguments]).to_h.with_indifferent_access
+          obj_key = GraphqlModelMapper.get_type_case(obj_context.name, false)
+          return GraphqlModelMapper::UNAUTHORIZED if !GraphqlModelMapper.authorized?(ctx, obj_context.name, :query) && GraphqlModelMapper.use_graphql_object_restriction
+          raise GraphQL::ExecutionError.new("you passed arguments for a different type '#{local_select.keys}'") if !local_select[obj_key]
+
+          if local_select[obj_key]
+            select_args = select_args.reject{|m| m == "node_arguments"}.deep_merge(local_select[obj_key])
+          end
+        end
 
         if select_args[:scopes]
           input_scopes = select_args[:scopes]
@@ -78,15 +89,17 @@ module GraphqlModelMapper
         end
 
         if select_args[:includes]
-          binding.pry
+          #binding.pry
           implied_includes = select_args[:includes]
         end
-        if select_args[:where] || select_args[:order] || select_args[:order_by] || select_args[:order_by_full] || select_args[:short_filter] || select_args[:full_filter]
+        if select_args[:id] || select_args[:ids] || select_args[:item_id] || select_args[:item_ids] || select_args[:where] || select_args[:order] || select_args[:order_by] || select_args[:order_by_full] || select_args[:short_filter] || select_args[:full_filter]
           implied_includes = implied_includes.deep_merge(self.get_implied_includes(obj_context.name.classify.constantize, ctx.ast_node))
+=begin
           if select_args[:order_by_full]
-            order_implied_includes = self.get_order_implied_includes(select_args[:order_by_full].to_h, parent={})
+            order_implied_includes = self.get_order_implied_includes(select_args[:order_by_full], parent={})
             implied_includes = order_implied_includes.deep_merge(implied_includes.to_h.with_indifferent_access)
           end
+=end
           if select_args[:full_filter]
             filter_implied_includes = self.get_filter_implied_includes(select_args[:full_filter].to_h, parent={})
             implied_includes = filter_implied_includes.deep_merge(implied_includes.to_h.with_indifferent_access)
@@ -109,7 +122,7 @@ module GraphqlModelMapper
           raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve type for id:'#{select_args[:id]}'") if type_name.nil?
           model_name = GraphqlModelMapper.get_constant(type_name.upcase).metadata[:model_name].to_s.classify
           raise GraphQL::ExecutionError.new("incorrect global id '#{select_args[:id]}': expected global id for '#{name}', received global id for '#{model_name}'") if model_name != name 
-          obj_context = obj_context.where(["#{obj_context.model_name.plural}.id = ?", item_id.to_i])
+          obj_context = obj_context.where(["#{obj_context.base_class.model_name.plural}.id = ?", item_id.to_i])
         end
         if select_args[:ids]
           finder_array = []
@@ -130,13 +143,14 @@ module GraphqlModelMapper
           if errors.length > 0
             raise GraphQL::ExecutionError.new(errors.join(";")) 
           end
-          obj_context = obj_context.where(["`#{obj_context.model_name.plural}`.id in (?)", finder_array])
+          obj_context = obj_context.where(["`#{obj_context.base_class.model_name.plural}`.id in (?)", finder_array])
         end
         if select_args[:item_ids]
-          obj_context = obj_context.where(["`#{obj_context.model_name.plural}`.id in (?)", select_args[:item_ids]])
+          obj_context = obj_context.where(["`#{obj_context.base_class.model_name.plural}`.id in (?)", select_args[:item_ids]])
         end
+        
         if select_args[:item_id]
-          obj_context = obj_context.where(["`#{obj_context.model_name.plural}`.id = ?", select_args[:item_id].to_i])
+          obj_context = obj_context.where(["`#{obj_context.base_class.model_name.plural}`.id = ?", select_args[:item_id].to_i])
         end
         if select_args[:where]
           begin
@@ -146,15 +160,13 @@ module GraphqlModelMapper
             
           end
           test_query = true
-        else
-          obj_context = obj_context.where("1=1")
         end
         if select_args[:short_filter]
           obj_context = self.apply_short_filter(obj_context, select_args[:short_filter])
         end
         if select_args[:full_filter]
           args = select_args[:full_filter].to_h.with_indifferent_access.deep_merge(implied_includes).to_h
-          ##binding.pry
+          ###binding.pry
           obj_context = self.apply_full_filter(obj_context, args, model.table_name, "", [])
         end
 
@@ -183,6 +195,12 @@ module GraphqlModelMapper
           obj_context = self.apply_full_order(obj_context, args, model.table_name, "", [])
         end
 
+        hasArguments = false
+        select_args.keys.each{|x| hasArguments = hasArguments ||  !select_args[x].blank?}
+        if (obj_context.public_methods.include?(:arel) && obj_context.arel.where_sql.nil?) || !hasArguments
+          obj_context = obj_context.where("1=1")
+        end
+
         #check for sql errors
         begin
           GraphqlModelMapper.logger.info "GraphqlModelMapper: ****** testing query for validity"
@@ -207,7 +225,7 @@ module GraphqlModelMapper
           end
           raise err if !err.nil?
         end
-        #binding.pry
+        ##binding.pry
         obj_context
     end
 
@@ -272,6 +290,11 @@ module GraphqlModelMapper
       class_name.reflect_on_all_associations.select{|m|m.name == selection_name.to_sym}.present?
     end
 
+    def self.get_reflection_name(class_name, selection_name)
+      reflection = class_name.reflect_on_all_associations.select{|m|m.name == selection_name.to_sym}[0]
+      reflection.class_name
+    end
+
     def self.map_relay_pagination_depencies(class_name, selection, dependencies)
       node_selection = selection.selections.find { |sel| sel.name == 'node' }
 
@@ -285,6 +308,7 @@ module GraphqlModelMapper
     
     def self.get_implied_includes(class_name, ast_node, dependencies={})
       ast_node.selections.each do |selection|
+        next if !selection.public_methods.include?(:name)
         name = selection.name
 
         if using_relay_pagination?(selection)
@@ -307,8 +331,10 @@ module GraphqlModelMapper
           next
         end
 
+        
         if has_reflection_with_name?(class_name, name)
           begin
+            reflection_class_name = get_reflection_name(class_name, name)
             current_class_name = selection.name.singularize.classify.constantize
             dependencies[name] = self.get_implied_includes(current_class_name, selection)
           rescue NameError
@@ -404,6 +430,7 @@ module GraphqlModelMapper
 
     def self.get_order_implied_includes(value, parent={})
       result = {}
+      binding.pry
       value.keys.each do |key|
         if !["ASC", "DESC"].include?(value[key])
           target = self.get_order_implied_includes(value[key], key)
@@ -524,7 +551,7 @@ module GraphqlModelMapper
               index = has_index ? "_#{alias_count}" : ""
               scope = self.get_compare(scope, "#{base_name}#{index}.#{key}", val["compare"],  val["value"])
             else
-              ##binding.pry
+              ###binding.pry
               scope = self.get_compare(scope, "#{reflection_parent.pluralize}.#{key}", val["compare"],  val["value"])
             end
           end
@@ -557,8 +584,9 @@ module GraphqlModelMapper
       out = out + (compare == "contains" ? " like ?" : "")
       out = out + (compare == "isNull" ? " is null" : "")
       out = out + (compare == "notNull" ? " is not null" : "")
-      out = out + (compare == "isTrue" ? " = 1" : "")
-      out = out + (compare == "isFalse" ? " = 0" : "")
+      out = out + (compare == "isTrue" ? " = 1": "")
+      out = out + (compare == "isFalse" ? " = 0 or coalesce(#{column}, 0) = 0": "")
+      #out = (compare == "coalesce" ? "coalesce(#{column}, 0) = ?" : "")
       
       value = (compare == "contains" ? "%#{value}%" : value) 
 
@@ -581,6 +609,79 @@ module GraphqlModelMapper
       branches
     end
 
+    def self.resolve_node_query(obj, args, ctx)
+      a = ctx.parent.parent.ast_node.dup
+      a.name = GraphqlModelMapper.get_type_case(obj.name, false)
+      GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(obj.name, a.to_query_string.sub("parent_arguments", "").sub("node_arguments", "").sub("node_query",""))).to_s
+      a.to_query_string #.sub("parent_arguments", "").sub("node_arguments", "").sub("node_query","")                            
+    end
+
+    def self.resolve_parent_arguments(obj, args, ctx)
+      parent_args = ctx.parent.parent.irep_node.arguments.to_h.with_indifferent_access
+      ret_args = {}
+      ret_key = GraphqlModelMapper.get_type_case(obj.name, false)
+      ret_args[ret_key] = parent_args.reject{|m| parent_args[m].nil?}
+      #binding.pry
+      fragments = ctx.parent.irep_node.query.fragments
+      s = ""
+      fragments.keys.each do |p|
+          s = "#{s}#{fragments[p].to_query_string}\n"
+      end
+      s = s.sub("parent_arguments", "").sub("node_arguments", "").sub("node_query","") 
+      ret_args[ret_key]["fragments"] = s if !s.blank?
+      ret_args[ret_key]["variables"] = ctx.parent.irep_node.query.variables.to_h if !ctx.parent.irep_node.query.variables.to_h.empty?
+      #ctx.parent.irep_node.arguments.to_json
+      GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(obj.name, ret_args.to_json)).to_s
+      ret_args.to_json                           
+  end
+  require 'digest/bubblebabble'
+    def self.resolve_node_arguments(obj, args, ctx)
+
+      node_args = args.to_h.reject{|m| args[m].nil?}
+      arg_name_select = "full_filter"
+      node_args.delete(arg_name_select.to_sym)
+
+      arg_name_select = "where"
+      node_args[arg_name_select.to_sym] = obj.arel.where_sql.sub("WHERE", "") if !obj.arel.where_sql.nil?
+
+      arg_name_select = "order"
+      node_args[arg_name_select.to_sym] = obj.arel.order_clauses.join(",") if !obj.arel.order_clauses.empty?
+
+      arg_name_select = "includes"
+      node_args[arg_name_select.to_sym] = obj.includes_values.first if obj.includes_values
+      
+      arg_name_select = "joins"
+      node_args[arg_name_select.to_sym] = obj.arel.join_sql if obj.arel.join_sql
+
+      arg_name_select = "default_fragments"
+      fragments = ctx.query.fragments
+      s = ""
+      fragments.keys.each do |p|
+          s = "#{s}#{fragments[p].to_query_string}\n"
+      end
+      #s = s.sub("parent_arguments", "").sub("node_arguments", "").sub("node_query","") 
+      node_args[arg_name_select.to_sym] = s if !s.blank?
+
+      arg_name_select = "default_variables"
+      variables = ctx.query.variables.to_h
+      node_args[arg_name_select.to_sym] = variables if !variables.empty?
+
+      arg_name_select = "parameters"
+      variables = ctx.query.selected_operation.variables
+      ret_variables = {}
+      variables.each do |var|
+          ret_variables[var.name] = {}
+          ret_variables[var.name]["type"] = var.type.name
+          ret_variables[var.name]["default_value"] = var.default_value
+      end
+      node_args[arg_name_select.to_sym] = ret_variables if !ret_variables.empty?
+
+      ret_args = {}
+      ret_key = GraphqlModelMapper.get_type_case(obj.name, false)
+      ret_args[ret_key] = node_args.reject{|m| node_args[m].nil?}
+  
+      ret_args.to_json                         
+    end
 
     def self.get_nested_select_args(ctx, select_args)
       a = ctx.irep_node

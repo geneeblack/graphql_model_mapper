@@ -30,14 +30,14 @@ module GraphqlModelMapper
   
 
   @@type_case = :camelize
-  @@nesting_strategy = :shallow
+  @@nesting_strategy = :flat
   @@use_authorize = false
   @@max_page_size = 100
   @@scan_for_polymorphic_associations = false
   @@query_resolve_wrapper = nil
   @@mutation_resolve_wrapper = nil
   @@default_nodes_field = false
-  @@bidirectional_pagination = false
+  @@bidirectional_pagination = true
   @@handle_errors = true
   @@secret_token = nil
   @@encrypted_items = true

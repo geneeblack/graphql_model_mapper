@@ -1,5 +1,7 @@
 module GraphqlModelMapper
     module MapperType
+        delegate :url_helpers, to: 'Rails.application.routes'
+
         def self.graphql_types(
             name: self.name,
             input_type: {},
@@ -82,7 +84,7 @@ module GraphqlModelMapper
                     name typename
                 
                     argument :column, property_enum_type
-                    argument :direction, GraphqlModelMapper::SortOrderEnum
+                    argument :direction, !GraphqlModelMapper::SortOrderEnum
                 end
                 
                 
@@ -143,7 +145,7 @@ module GraphqlModelMapper
                 arguments.sort_by(&:name).each do |a|
                     argument a.name, a.type 
                 end
-            end  if type_sub_key == :order_type_full
+            end.to_list_type  if type_sub_key == :order_type_full
 
 
             begin 
@@ -154,8 +156,8 @@ module GraphqlModelMapper
                 
                     argument :OR, -> { model_filter }
                     argument :column, property_enum_type
-                    argument :compare, GraphqlModelMapper::StringCompareEnum
-                    argument :value, types.String #types.String || types.Number || types.GeometryObject || types.float
+                    argument :compare, !GraphqlModelMapper::StringCompareEnum
+                    argument :value, types.String #types.String || types.Number || types.GeometryObject || types.FLOAT_TYPE || types.BOOLEAN_TYPE
                 end
 
 
@@ -402,7 +404,7 @@ module GraphqlModelMapper
                         end
                     end
                 end
-
+=begin
                 field :model_url, types.String do
                     description 'web show url'
                     resolve -> (obj, args, ctx) {
@@ -412,10 +414,11 @@ module GraphqlModelMapper
                 field :node_reference, types.String do
                     description 'a graphql query for this record'
                     resolve -> (obj, args, ctx) {
-                        binding.pry
+                        #binding.pry
                         [ GraphqlModelMapper::Resolve.get_node_parent(ctx.parent.irep_node).name.singularize.downcase, obj.id].join("-")
                     }
                 end
+=end
             end if type_sub_key == :output_type
             GraphqlModelMapper.set_constant(typename, ret_type) if !GraphqlModelMapper.defined_constant?(typename)
             ret_type
@@ -503,12 +506,15 @@ module GraphqlModelMapper
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
                                 GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.parent.irep_node.arguments.to_h.with_indifferent_access.to_json)).to_s
+
+                                ctx.parent.parent.irep_node.arguments.to_h.with_indifferent_access.to_json
                             }
                         end
                         field :qp, hash_key: :qp do
                             type GraphQL::STRING_TYPE
                             resolve ->(obj, args, ctx) {
-                                GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
+                                GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s
+                                ctx.query.query_string.sub("ep", "").sub("qp","")                            
                             }
                         end
                     end
@@ -530,8 +536,35 @@ module GraphqlModelMapper
             if GraphqlModelMapper.defined_constant?(list_type_name)
                 list_type = GraphqlModelMapper.get_constant(list_type_name)
             else
-                page_info_type_name = "FlatPageInfo"
-                if GraphqlModelMapper.defined_constant?(page_info_type_name)
+                developer_type_name = "DevelopmentInfo"
+                if GraphqlModelMapper.defined_constant?(developer_type_name)
+                    developer_type = GraphqlModelMapper.get_constant(developer_type_name)
+                else
+                    developer_type = GraphQL::ObjectType.define do
+                        name developer_type_name
+                        field :node_arguments, GraphQL::STRING_TYPE, hash_key: :node_arguments do
+                            resolve ->(obj, args, ctx) {
+                                GraphqlModelMapper::Resolve.resolve_node_arguments(obj, args, ctx)
+                            }
+                        end
+                        field :parent_arguments, GraphQL::STRING_TYPE,  hash_key: :parent_arguments do
+                            resolve ->(obj, args, ctx) {
+                                GraphqlModelMapper::Resolve.resolve_parent_arguments(obj, args, ctx)
+                            }
+                        end
+                        field :node_query, GraphQL::STRING_TYPE, hash_key: :node_query do
+                            resolve ->(obj, args, ctx) {
+                                GraphqlModelMapper::Resolve.resolve_node_query(obj, args, ctx)
+                            }
+                        end
+    
+                    end
+                    GraphqlModelMapper.set_constant(developer_type_name, developer_type)
+                end
+
+
+                page_info_type_name = "PagingInfo"
+                if GraphqlModelMapper.defined_constant?(page_info_type_name) 
                     page_info_type = GraphqlModelMapper.get_constant(page_info_type_name)
                 else
                     page_info_type = GraphQL::ObjectType.define do
@@ -566,15 +599,31 @@ module GraphqlModelMapper
                                 ctx[:per_page]
                             }
                         end
+                        field :nextPageUrl, GraphQL::INT_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:per_page]
+                            }
+                        end
+                        field :previousPageUrl, GraphQL::INT_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:per_page]
+                            }
+                        end
+                        field :sourceUrl, GraphQL::INT_TYPE do 
+                            resolve->(obj,args, ctx){
+                                ctx[:per_page]
+                            }
+                        end
+
                     end
                     GraphqlModelMapper.set_constant(page_info_type_name, page_info_type)
                 end
                 list_type = GraphQL::ObjectType.define do
                     name(list_type_name)
-                
+                    
                     field :items, -> {output_type.to_list_type}, hash_key: :items do
-                        argument :perPage, GraphQL::INT_TYPE
-                        argument :page, GraphQL::INT_TYPE
+#                        argument :perPage, GraphQL::INT_TYPE
+#                        argument :page, GraphQL::INT_TYPE
                         resolve -> (obj,args,ctx){ 
                             ctx[:items] || GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx) 
                         }
@@ -583,7 +632,6 @@ module GraphqlModelMapper
                         argument :perPage, GraphQL::INT_TYPE
                         argument :page, GraphQL::INT_TYPE
                         resolve -> (obj,args,ctx){ 
-
                             ctx[:total_count] = obj.count
                             ctx[:per_page] = args[:perPage] || GraphqlModelMapper.max_page_size
                             ctx[:per_page] = [ GraphqlModelMapper.max_page_size, ctx[:per_page] ].min
@@ -594,60 +642,13 @@ module GraphqlModelMapper
                             ctx[:has_next_page] = ctx[:current_page] < ctx[:page_count]
 
                             ctx[:items] = GraphqlModelMapper::MapperType.resolve_list(obj,args,ctx)                            
-                            ctx[:items]
-                        }
+                            ctx[:items]                        }
                     end
-                    field :node_collection, hash_key: :reference do
-                        type GraphQL::STRING_TYPE
-                        resolve ->(obj, args, ctx) {
-                            #ctx.parent.ast_node.name = model_name.downcase
-                            #GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.ast_node.to_query_string)).to_s
-                            ##binding.pry
-                            a = ctx.parent.ast_node.dup
-                            a.name = obj.name.downcase
 
-
-                            arg_name_select = "where"
-                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
-                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
-                            binding.pry
-                            arg.value = obj.arel.where_sql.sub("WHERE", "")
-                            a.arguments.append(arg) if target_arg.nil?
-
-                            arg_name_select = "order"
-                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
-                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
-                            arg.value = obj.arel.order_clauses.join(",")
-                            a.arguments.append(arg) if target_arg.nil?
-
-                            arg_name_select = "includes"
-                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
-                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
-                            arg.value = obj.includes_values.first
-                            a.arguments.append(arg) if target_arg.nil?
-                            
-                            arg_name_select = "joins"
-                            target_arg = a.arguments.select{|m|m.name==arg_name_select}.first
-                            arg = target_arg || GraphQL::Language::Nodes::Argument.new(name: arg_name_select, value: {})
-                            arg.value = obj.arel.join_sql
-                            a.arguments.append(arg) if target_arg.nil?
-
-                            a.to_query_string                            
+                    field :development, -> { GraphqlModelMapper.get_constant(developer_type_name) }, hash_key: :development do
+                        resolve -> (obj, args, ctx) {
+                            obj
                         }
-                    end
-                    if root
-                        field :ep, hash_key: :ep do
-                            type GraphQL::STRING_TYPE
-                            resolve ->(obj, args, ctx) {
-                                GraphqlModelMapper::Encryption.encode(GraphQL::Schema::UniqueWithinType.encode(model_name, ctx.parent.irep_node.arguments.to_h.with_indifferent_access.to_json)).to_s                            
-                            }
-                        end
-                        field :qp, hash_key: :qp do
-                            type GraphQL::STRING_TYPE
-                            resolve ->(obj, args, ctx) {
-                                GraphqlModelMapper::Encryption.encode(ctx.query.query_string.sub("ep", "").sub("qp","")).to_s                            
-                            }
-                        end
                     end
                 end
                 GraphqlModelMapper.set_constant(list_type_name, list_type)
@@ -845,7 +846,8 @@ module GraphqlModelMapper
                     
                     db_fields.sort.each  do |f|
                         target_type = GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, false)
-                        value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean].include?(columns[f.to_s].type)
+                        value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean, :date].include?(columns[f.to_s].type)
+                        puts "#{model.table_name}.#{f} #{columns[f.to_s].type}" if model.table_name == "jobs"
                         #value(f, target_type.to_s, value: "#{model.table_name}.#{f}") if [GraphQL::INT_TYPE, GraphQL::STRING_TYPE, GraphqlModelMapper::DATE_TYPE, GraphQL::BOOLEAN_TYPE,GraphqlModelMapper::GEOMETRY_OBJECT_TYPE, GraphqlModelMapper::GEOMETRY_STRING_TYPE].include?(target_type)
                     end
                 end

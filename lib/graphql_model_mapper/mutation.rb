@@ -139,8 +139,8 @@ module GraphqlModelMapper
               {:name=>:short_filter, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :search_type)}},
               {:name=>:full_filter, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :search_type_full)}},
               {:name=>:order_by, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :order_type)}},
-              {:name=>:order_by_full, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :order_type_full)}},
-              {:name=>:includes, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :includes_type)}},
+              #{:name=>:order_by_full, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :order_type_full)}},
+              #{:name=>:includes, :type=>->{ GraphqlModelMapper::MapperType.get_ar_object(model.name, type_sub_key: :includes_type)}},
               {:name=>:joins, :type=>GraphQL::STRING_TYPE, :default=>nil, :authorization=>:manage}
             ]
 

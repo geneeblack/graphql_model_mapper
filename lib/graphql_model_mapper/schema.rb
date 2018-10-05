@@ -72,6 +72,7 @@ module GraphqlModelMapper
           rescue => e
             raise GraphQL::ExecutionError.new("incorrect global id: unable to resolve id: #{e.message}")            
           end
+
           
           type = GraphqlModelMapper.get_constant(type_name.upcase)
           raise GraphQL::ExecutionError.new("unknown type for id: #{id}") if type.nil?
@@ -122,12 +123,23 @@ module GraphqlModelMapper
         # create queries for each AR model object
         field :node, GraphQL::Relay::Node.field do
           description "Fetches an object given its globally unique ID"
-          argument :ep, GraphQL::STRING_TYPE
         end
 
         field :nodes, GraphQL::Relay::Node.plural_field do
           description "Fetches a list of objects given a list of globally unique IDs"
         end
+        
+        field :nodeArguments, GraphQL::Field.define do
+          type(!types[GraphQL::Relay::Node.interface])
+          description("Fetches a list of objects given a list of query.")
+          argument(:node_arguments, !GraphQL::STRING_TYPE, "encrypted query")
+          resolve -> (obj, args, ctx) {
+            binding.pry
+            obj = GraphqlModelMapper::Resolve.query_resolver(obj, args, ctx, JSON(args[:node_arguments]).to_h.with_indifferent_access.keys.first.classify)
+            obj
+          }
+          #relay_nodes_field(true)
+          end
 
 
         GraphqlModelMapper.schema_queries.each do |f|
@@ -243,6 +255,8 @@ module GraphqlModelMapper
     value("isTrue", " = 1")
     value("isFalse", " = 0")
     value("notNull", "is not null")
+    value("isNull", "is null")
+    value("coalesce", "= 0")
     value("noOp", "operation placeholder, no operation will be performed on this item")
   end
 
