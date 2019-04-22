@@ -847,7 +847,7 @@ module GraphqlModelMapper
                     db_fields.sort.each  do |f|
                         target_type = GraphqlModelMapper::MapperType.convert_type(columns[f.to_s].type, columns[f.to_s].sql_type, false)
                         value(f, columns[f.to_s].type.to_s, value: "#{model.table_name}.#{f}") if [:integer, :string, :datetime, :boolean, :date].include?(columns[f.to_s].type)
-                        puts "#{model.table_name}.#{f} #{columns[f.to_s].type}" if model.table_name == "jobs"
+                        #puts "#{model.table_name}.#{f} #{columns[f.to_s].type}" if model.table_name == "jobs"
                         #value(f, target_type.to_s, value: "#{model.table_name}.#{f}") if [GraphQL::INT_TYPE, GraphQL::STRING_TYPE, GraphqlModelMapper::DATE_TYPE, GraphQL::BOOLEAN_TYPE,GraphqlModelMapper::GEOMETRY_OBJECT_TYPE, GraphqlModelMapper::GEOMETRY_STRING_TYPE].include?(target_type)
                     end
                 end
